@@ -1,0 +1,8 @@
+{
+  "name": "Cursor",
+  "version": "0.40.4",
+  "private": true,
+  "resolutions": {
+    "node-gyp-build": "4.8.1"
+  }
+}

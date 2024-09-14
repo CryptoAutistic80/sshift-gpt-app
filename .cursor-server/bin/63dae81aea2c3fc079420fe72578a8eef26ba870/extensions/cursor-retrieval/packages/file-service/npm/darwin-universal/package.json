@@ -1,0 +1,1 @@
+{"name":"@anysphere/file-service-darwin-universal","version":"0.0.0","os":["darwin"],"main":"file_service.darwin-universal.node","files":["file_service.darwin-universal.node"],"license":"MIT","engines":{"node":">= 10"}}
