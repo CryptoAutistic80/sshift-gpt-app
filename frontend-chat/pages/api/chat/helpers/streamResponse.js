@@ -53,7 +53,7 @@ export async function streamResponse(res, model, messages, temperature, userConf
         const stream = await openai.chat.completions.create({
             model: model || 'gpt-4o-mini',
             messages: messagesWithSystemPrompt,
-            max_tokens: 8192,
+            max_tokens: 16384,
             temperature,
             stream: true,
             tools: toolSchema,
