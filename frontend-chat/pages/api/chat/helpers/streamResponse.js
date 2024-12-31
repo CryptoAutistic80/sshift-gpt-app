@@ -13,37 +13,27 @@ export async function streamResponse(res, model, messages, temperature, userConf
     
     // Format messages to handle images properly
     const formattedMessages = messages.map(msg => {
-        // Handle messages with images
         if (msg.role === 'user' && msg.image) {
             return {
                 role: 'user',
                 content: [
-                    { 
-                        type: 'text', 
-                        text: msg.content || "Here's an image." 
-                    },
+                    { type: 'text', text: msg.content || "Here's an image." },
                     { 
                         type: 'image_url', 
-                        image_url: { 
-                            url: msg.image,
-                            detail: "auto"
-                        } 
+                        image_url: { url: msg.image, detail: "auto" } 
                     }
                 ]
             };
         }
-        // Handle messages that are already properly formatted for images
         if (msg.role === 'user' && Array.isArray(msg.content)) {
             return msg;
         }
-        // Handle regular text messages
         return {
             role: msg.role || 'user',
             content: msg.content || ''
         };
     });
 
-    // Add system prompt at the beginning of the messages array
     const messagesWithSystemPrompt = [
         systemPrompt,
         ...formattedMessages
@@ -61,13 +51,16 @@ export async function streamResponse(res, model, messages, temperature, userConf
             parallel_tool_calls: true,
         });
 
+        // Set SSE headers
         res.writeHead(200, {
             'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-transform',
             'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
         });
 
         for await (const chunk of stream) {
+            // Handle content streaming
             if (chunk.choices[0]?.delta?.content) {
                 assistantMessage.content += chunk.choices[0].delta.content;
                 writeResponseChunk(chunk, res);

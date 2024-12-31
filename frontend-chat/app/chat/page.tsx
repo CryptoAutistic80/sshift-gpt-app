@@ -666,6 +666,84 @@ export default function ChatPage() {
     }
   };
 
+  async function handleStream(response: Response, messageId: string) {
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+        while (reader) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.trim() === '') continue;
+                if (line === 'data: [DONE]') continue;
+
+                try {
+                    const data = JSON.parse(line.replace('data: ', ''));
+                    
+                    if (data.content) {
+                        // Update the message content in your state
+                        setChats(prev => prev.map(chat => ({
+                            ...chat,
+                            messages: chat.messages.map(msg => 
+                                msg.id === messageId 
+                                    ? { ...msg, content: msg.content + data.content }
+                                    : msg
+                            )
+                        })));
+                    }
+                    
+                    if (data.tool_call) {
+                        // Handle tool call indication
+                        setChats(prev => prev.map(chat => ({
+                            ...chat,
+                            messages: chat.messages.map(msg =>
+                                msg.id === messageId
+                                    ? { ...msg, isProcessingTool: true }
+                                    : msg
+                            )
+                        })));
+                    }
+
+                    if (data.final_message) {
+                        // Handle final message
+                        setChats(prev => prev.map(chat => ({
+                            ...chat,
+                            messages: chat.messages.map(msg =>
+                                msg.id === messageId
+                                    ? { 
+                                        ...msg, 
+                                        content: data.final_message.content,
+                                        images: data.final_message.images,
+                                        isProcessingTool: false
+                                    }
+                                    : msg
+                            )
+                        })));
+                    }
+
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                } catch (e) {
+                    console.error('Error parsing stream:', e);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Stream reading error:', error);
+        throw error;
+    } finally {
+        reader?.releaseLock();
+    }
+  }
+
   return (
     <div className="flex h-screen bg-background">
       <ChatSidebar
