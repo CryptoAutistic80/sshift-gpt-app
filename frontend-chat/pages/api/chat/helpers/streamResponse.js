@@ -40,6 +40,9 @@ export async function streamResponse(res, model, messages, temperature, userConf
     ];
 
     try {
+        console.log('Making OpenAI API call with tools:', JSON.stringify(toolSchema, null, 2));
+        console.log('Messages being sent:', JSON.stringify(messagesWithSystemPrompt, null, 2));
+
         const stream = await openai.chat.completions.create({
             model: model || 'gpt-4o-mini',
             messages: messagesWithSystemPrompt,
@@ -60,20 +63,28 @@ export async function streamResponse(res, model, messages, temperature, userConf
         });
 
         for await (const chunk of stream) {
+            console.log('Received chunk:', JSON.stringify(chunk, null, 2));
+            
             // Handle content streaming
             if (chunk.choices[0]?.delta?.content) {
                 assistantMessage.content += chunk.choices[0].delta.content;
                 writeResponseChunk(chunk, res);
                 res.flush();
             }
+            // Handle tool calls
             else if (chunk.choices[0]?.delta?.tool_calls) {
+                console.log('Tool call detected:', JSON.stringify(chunk.choices[0].delta.tool_calls, null, 2));
                 const isToolCall = await handleToolCall(chunk, currentToolCalls);
                 if (isToolCall) {
+                    console.log('Current tool calls:', JSON.stringify(currentToolCalls, null, 2));
                     res.write(`data: ${JSON.stringify({ tool_call: true })}\n\n`);
                     res.flush();
                 }
             }
+            // Handle tool call completion
             else if (chunk.choices[0]?.finish_reason === 'tool_calls') {
+                console.log('Tool calls completed:', JSON.stringify(currentToolCalls, null, 2));
+                
                 // Add the assistant's message with tool calls to the history
                 const assistantToolMessage = {
                     role: 'assistant',
@@ -91,6 +102,7 @@ export async function streamResponse(res, model, messages, temperature, userConf
 
                 // Process tool calls and add their results to the history
                 const toolResults = await processToolCalls(currentToolCalls, userConfig, auth);
+                console.log('Tool results:', JSON.stringify(toolResults, null, 2));
                 messagesWithSystemPrompt.push(...toolResults);
 
                 // Create continuation with the updated message history
