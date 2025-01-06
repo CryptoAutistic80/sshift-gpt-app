@@ -106,14 +106,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       {/* Backdrop overlay for mobile */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/20 z-40 md:hidden" 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden" 
           onClick={onClose}
         />
       )}
       <div className={`
         fixed md:relative top-0 left-0 h-[100dvh] w-80 border-r border-border
         md:block transform transition-transform duration-300 ease-in-out z-50
-        bg-white dark:bg-gray-950 shadow-lg md:shadow-none
+        bg-white shadow-lg md:shadow-none
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         <div className="flex flex-col h-full">
