@@ -230,3 +230,4 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     </>
   );
 };
+
