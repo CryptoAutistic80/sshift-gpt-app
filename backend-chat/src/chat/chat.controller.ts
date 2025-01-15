@@ -74,4 +74,4 @@ export class ChatController {
 
     return GetUserDto.fromJson(user);
   }
-}
+} 
