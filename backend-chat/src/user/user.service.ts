@@ -111,4 +111,49 @@ export class UserService {
       }
     );
   }
+
+  async getChatMessages(address: string, chatId: string, page = 1, limit = 20) {
+    const user = await this.userModel.findOne({ 
+      address: address.toLowerCase(),
+      'chats.id': chatId 
+    });
+
+    if (!user) {
+      return {
+        messages: [],
+        hasMore: false,
+        total: 0
+      };
+    }
+
+    const chat = user.chats.find(c => c.id === chatId);
+    if (!chat) {
+      return {
+        messages: [],
+        hasMore: false,
+        total: 0
+      };
+    }
+
+    // Sort messages by createdAt in descending order
+    const sortedMessages = [...chat.messages].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    // Calculate pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const total = sortedMessages.length;
+
+    // Get messages for current page
+    const messages = sortedMessages.slice(startIndex, endIndex);
+
+    return {
+      messages,
+      hasMore: endIndex < total,
+      total
+    };
+  }
 }

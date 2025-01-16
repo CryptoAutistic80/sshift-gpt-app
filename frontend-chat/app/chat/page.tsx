@@ -63,11 +63,13 @@ export default function ChatPage() {
   const [isWaiting, setIsWaiting] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [showNoChatsMessage, setShowNoChatsMessage] = useState(false);
-  const [status, setStatus] = useState<'thinking' | 'tool-calling' | 'typing'>(
-    'thinking'
-  );
+  const [status, setStatus] = useState<'thinking' | 'tool-calling' | 'typing'>('thinking');
   const [isAssistantResponding, setIsAssistantResponding] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const messagesPerPage = 20;
 
   const lastMessageRef = useRef<HTMLDivElement>(null);
 
@@ -87,16 +89,21 @@ export default function ChatPage() {
       createdAt: currentTime,
       lastUpdated: currentTime,
     };
-    setChats([...chats, newChat]);
+    setChats(prevChats => [...prevChats, newChat]);
     setCurrentChatId(newChat.id);
     setSelectedModel('gpt-4o-mini'); // Reset selected model for new chats
+    setMessages([]); // Reset messages for new chat
+    setHasMore(false); // Reset hasMore flag
+    setCurrentPage(1); // Reset current page
   };
 
-  const handleChatSelect = (chatId: string) => {
+  const handleChatSelect = async (chatId: string) => {
     setCurrentChatId(chatId);
     const selectedChat = chats.find((chat) => chat.id === chatId);
     if (selectedChat) {
-      setSelectedModel(selectedChat.model);
+      setSelectedModel(selectedChat.model || 'gpt-4o-mini');
+      setCurrentPage(1); // Reset page when selecting a new chat
+      await loadChatMessages(chatId, 1);
     }
   };
 
@@ -466,29 +473,36 @@ export default function ChatPage() {
 
   useEffect(() => {
     (async () => {
-      const chatResponse = await backend.get('/history', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('jwt')}`,
-        },
-      });
+      try {
+        const chatResponse = await backend.get('/history', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jwt')}`,
+          },
+        });
 
-      const savedChats = chatResponse.data;
-      if (savedChats) {
-        const updatedChats = savedChats.chats.map((chat: Chat) => ({
-          ...chat,
-        }));
-        setChats(updatedChats);
-        if (updatedChats.length > 0) {
-          // Find the most recent chat based on lastUpdated timestamp
-          const mostRecentChat = updatedChats.reduce((latest: Chat, current: Chat) => 
-            (current.lastUpdated || 0) > (latest.lastUpdated || 0) ? current : latest
-          );
-          setCurrentChatId(mostRecentChat.id);
-          setSelectedModel(mostRecentChat.model || 'gpt-4o-mini');
+        const savedChats = chatResponse.data;
+        if (savedChats) {
+          const updatedChats = savedChats.chats.map((chat: Chat) => ({
+            ...chat,
+          }));
+          setChats(updatedChats);
+          if (updatedChats.length > 0) {
+            // Find the most recent chat based on lastUpdated timestamp
+            const mostRecentChat = updatedChats.reduce((latest: Chat, current: Chat) => 
+              (current.lastUpdated || 0) > (latest.lastUpdated || 0) ? current : latest
+            );
+            setCurrentChatId(mostRecentChat.id);
+            setSelectedModel(mostRecentChat.model || 'gpt-4o-mini');
+            // Load messages for the most recent chat
+            await loadChatMessages(mostRecentChat.id, 1);
+          } else {
+            handleNewChat();
+          }
         } else {
           handleNewChat();
         }
-      } else {
+      } catch (error) {
+        console.error('Error loading chats:', error);
         handleNewChat();
       }
     })();
@@ -698,6 +712,43 @@ export default function ChatPage() {
     }
   };
 
+  // Function to load messages for a chat
+  const loadChatMessages = async (chatId: string, page: number = 1) => {
+    try {
+      const response = await backend.get(`/history/${chatId}/messages?page=${page}&limit=${messagesPerPage}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jwt')}`,
+        },
+      });
+      
+      if (response.status !== 200) {
+        throw new Error('Failed to fetch messages');
+      }
+
+      const data = response.data;
+      
+      if (page === 1) {
+        // If it's the first page, replace all messages
+        setMessages(data.messages);
+      } else {
+        // If loading more, append to existing messages
+        setMessages(prev => [...prev, ...data.messages]);
+      }
+      
+      setHasMore(data.hasMore);
+      setCurrentPage(page);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  // Function to load more messages when scrolling up
+  const loadMoreMessages = async () => {
+    if (currentChatId && hasMore) {
+      await loadChatMessages(currentChatId, currentPage + 1);
+    }
+  };
+
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
       <ChatSidebar
@@ -734,13 +785,16 @@ export default function ChatPage() {
         </Button>
         <div className="flex-1 min-h-0 flex flex-col">
           <ChatWindow
-            messages={currentChat?.messages || []}
+            messages={messages}
             onCopy={(text: string) => navigator.clipboard.writeText(text)}
             onRegenerate={handleRegenerateMessage}
             onEdit={handleEdit}
             status={status}
             showNoChatsMessage={showNoChatsMessage}
             isAssistantResponding={isAssistantResponding}
+            currentChatId={currentChatId}
+            onLoadMore={loadMoreMessages}
+            hasMore={hasMore}
           />
           <ChatInput onSendMessage={handleSendMessage} />
         </div>
