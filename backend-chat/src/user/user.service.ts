@@ -114,20 +114,12 @@ export class UserService {
 
   async getChatMessages(address: string, chatId: string, page = 1, limit = 20) {
     const user = await this.userModel.findOne({ 
-      address: address.toLowerCase(),
-      'chats.id': chatId 
+      address: address.toLowerCase()
     });
 
-    if (!user) {
-      return {
-        messages: [],
-        hasMore: false,
-        total: 0
-      };
-    }
-
-    const chat = user.chats.find(c => c.id === chatId);
-    if (!chat) {
+    const chat = user?.chats?.find(c => c.id === chatId);
+    
+    if (!user || !chat) {
       return {
         messages: [],
         hasMore: false,

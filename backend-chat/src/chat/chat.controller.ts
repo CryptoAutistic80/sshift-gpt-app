@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Logger,
-  NotFoundException,
   Get,
   Put,
   Query,
@@ -38,21 +37,13 @@ export class ChatController {
     @Body() chats: ChatHistoryDto[],
     @UserAuth() userAuth: IUserAuth
   ) {
-    const user = await this.userService.findUserByAddress(userAuth.address);
-
-    if (!user) {
-      throw new NotFoundException(
-        `User with address ${userAuth.address} does not exits`
-      );
-    }
-
     await this.userService.updateUser(
-      userAuth.address.toLocaleLowerCase(),
+      userAuth.address.toLowerCase(),
       chats
     );
 
     return GetUserDto.fromJson({
-      ...user,
+      ...await this.userService.findUserByAddress(userAuth.address),
       chats: chats as Chat[],
     });
   }
@@ -73,7 +64,6 @@ export class ChatController {
   })
   async getUserChatHistory(@UserAuth() userAuth: IUserAuth) {
     const user = await this.userService.findUserByAddress(userAuth.address);
-
     return GetUserDto.fromJson(user);
   }
 
@@ -98,14 +88,6 @@ export class ChatController {
     @Query('limit') limit = 20,
     @UserAuth() userAuth: IUserAuth
   ) {
-    const user = await this.userService.findUserByAddress(userAuth.address);
-
-    if (!user) {
-      throw new NotFoundException(
-        `User with address ${userAuth.address} does not exits`
-      );
-    }
-
     return this.userService.getChatMessages(
       userAuth.address.toLowerCase(),
       chatId,
