@@ -141,6 +141,9 @@ export default function ChatPage() {
         images: selectedImages,
       };
 
+      // Update both chats and messages states
+      setMessages(prevMessages => [...prevMessages, userMessage]);
+
       // Prepare the content array for the API request
       const contentArray = [
         ...selectedImages.map(imageUrl => ({
@@ -287,6 +290,17 @@ export default function ChatPage() {
   };
 
   const updateChat = (message: Message) => {
+    // Update messages state
+    setMessages(prevMessages => {
+      const messageExists = prevMessages.some(m => m.id === message.id);
+      if (messageExists) {
+        return prevMessages.map(m => m.id === message.id ? message : m);
+      } else {
+        return [...prevMessages, message];
+      }
+    });
+
+    // Update chats state
     setChats((prevChats) =>
       prevChats.map((chat) =>
         chat.id === currentChatId
@@ -731,8 +745,8 @@ export default function ChatPage() {
         // If it's the first page, replace all messages
         setMessages(data.messages);
       } else {
-        // If loading more, append to existing messages
-        setMessages(prev => [...prev, ...data.messages]);
+        // If loading more, prepend to existing messages since we're loading older messages
+        setMessages(prev => [...data.messages, ...prev]);
       }
       
       setHasMore(data.hasMore);
