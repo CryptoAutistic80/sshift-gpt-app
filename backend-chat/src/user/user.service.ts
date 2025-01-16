@@ -127,24 +127,26 @@ export class UserService {
       };
     }
 
-    // Sort messages by createdAt in descending order
+    // Sort messages by createdAt in ascending order (oldest to newest)
     const sortedMessages = [...chat.messages].sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return dateB - dateA;
+      return dateA - dateB;
     });
 
-    // Calculate pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
     const total = sortedMessages.length;
-
+    
+    // Calculate pagination starting from the newest messages
+    const startIndex = Math.max(0, total - (page * limit));
+    const endIndex = Math.min(total, total - ((page - 1) * limit));
+    
     // Get messages for current page
     const messages = sortedMessages.slice(startIndex, endIndex);
 
     return {
       messages,
-      hasMore: endIndex < total,
+      // Only have more messages if we haven't reached the beginning
+      hasMore: startIndex > 0,
       total
     };
   }

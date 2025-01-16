@@ -33,6 +33,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const scrollToBottom = () => {
     if (lastMessageRef.current) {
@@ -44,20 +45,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     scrollToBottom();
   }, [messages, status, isAssistantResponding]);
 
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const element = e.currentTarget;
+    const isBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 1;
+    setIsAtBottom(isBottom);
+  };
+
   return (
     <div className="flex-1 overflow-hidden flex flex-col w-full max-w-7xl mx-auto relative min-h-0">
       <div 
         id="scrollableDiv"
-        className="flex-1 min-h-0 overflow-auto flex flex-col-reverse"
+        className="flex-1 min-h-0 overflow-auto flex flex-col"
+        onScroll={handleScroll}
       >
         <InfiniteScroll
           dataLength={messages.length}
           next={onLoadMore}
-          style={{ display: 'flex', flexDirection: 'column-reverse' }}
-          inverse={true}
           hasMore={hasMore}
-          loader={<div className="text-center py-4">Loading...</div>}
+          loader={<div className="text-center py-4">Loading older messages...</div>}
           scrollableTarget="scrollableDiv"
+          className="flex flex-col justify-end"
+          inverse={false}
+          scrollThreshold="200px"
+          endMessage={
+            !isAtBottom && !hasMore ? 
+              <div className="text-center py-4 text-sm text-muted-foreground">
+                Beginning of conversation
+              </div>
+              : null
+          }
         >
           <div className="w-full px-2 py-2 md:px-4 md:py-8 space-y-3 md:space-y-4">
             {messages.map((message, index) => (
