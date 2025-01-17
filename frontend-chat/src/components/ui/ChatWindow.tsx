@@ -34,6 +34,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isLoadingOld, setIsLoadingOld] = useState(false);
+  const prevMessagesRef = useRef<Message[]>(messages);
 
   const scrollToBottom = () => {
     if (lastMessageRef.current) {
@@ -42,13 +44,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, status, isAssistantResponding]);
+    // Check if messages were added to the end (new) or beginning (old)
+    const isNewMessage = messages.length > 0 && 
+      prevMessagesRef.current.length > 0 && 
+      messages[messages.length - 1]?.id !== prevMessagesRef.current[prevMessagesRef.current.length - 1]?.id;
+
+    // Only scroll if we have new messages or the assistant is responding
+    if ((isNewMessage && !isLoadingOld) || isAssistantResponding) {
+      scrollToBottom();
+    }
+    
+    prevMessagesRef.current = messages;
+  }, [messages, isAssistantResponding, isLoadingOld]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
     const isBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 1;
     setIsAtBottom(isBottom);
+  };
+
+  const handleLoadMore = async () => {
+    setIsLoadingOld(true);
+    await onLoadMore();
+    setIsLoadingOld(false);
   };
 
   return (
@@ -59,13 +77,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onScroll={handleScroll}
       >
         {hasMore && (
-          <div className="text-center py-4 cursor-pointer hover:text-blue-500" onClick={onLoadMore}>
+          <div className="text-center py-4 cursor-pointer hover:text-blue-500" onClick={handleLoadMore}>
             Load older messages...
           </div>
         )}
         <InfiniteScroll
           dataLength={messages.length}
-          next={onLoadMore}
+          next={handleLoadMore}
           hasMore={false}
           loader={null}
           scrollableTarget="scrollableDiv"
