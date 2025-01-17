@@ -85,7 +85,7 @@ export class ChatController {
   async getChatMessages(
     @Param('chatId') chatId: string,
     @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query('limit') limit = 10,
     @UserAuth() userAuth: IUserAuth
   ) {
     return this.userService.getChatMessages(

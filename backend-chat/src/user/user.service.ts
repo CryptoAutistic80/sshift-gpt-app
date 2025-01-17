@@ -112,7 +112,7 @@ export class UserService {
     );
   }
 
-  async getChatMessages(address: string, chatId: string, page = 1, limit = 20) {
+  async getChatMessages(address: string, chatId: string, page = 1, limit = 10) {
     const user = await this.userModel.findOne({ 
       address: address.toLowerCase()
     });
