@@ -31,12 +31,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onLoadMore,
   hasMore
 }) => {
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const [isLoadingOld, setIsLoadingOld] = useState(false);
-  const prevMessagesRef = useRef<Message[]>(messages);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const prevMessagesLengthRef = useRef(messages.length);
 
   const scrollToBottom = () => {
     if (lastMessageRef.current) {
@@ -52,37 +50,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   }, [messages, hasInitialized]);
 
+  // Only scroll to bottom when new messages are added (not when loading old ones)
   useEffect(() => {
-    // Check if messages were added to the end (new) or beginning (old)
-    const isNewMessage = messages.length > 0 && 
-      prevMessagesRef.current.length > 0 && 
-      messages[messages.length - 1]?.id !== prevMessagesRef.current[prevMessagesRef.current.length - 1]?.id;
-
-    // Only scroll if we have new messages or the assistant is responding
-    if ((isNewMessage && !isLoadingOld) || isAssistantResponding) {
+    const isNewMessage = messages.length > prevMessagesLengthRef.current;
+    if (isNewMessage && isAssistantResponding) {
       scrollToBottom();
     }
-    
-    prevMessagesRef.current = messages;
-  }, [messages, isAssistantResponding, isLoadingOld]);
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const element = e.currentTarget;
-    const isBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 1;
-    const isNearTop = element.scrollTop < 200; // Trigger when near top
-    setIsAtBottom(isBottom);
-
-    // Only load more if we're initialized and near the top
-    if (hasInitialized && isNearTop && hasMore && !isLoadingOld) {
-      handleLoadMore();
-    }
-  };
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, isAssistantResponding]);
 
   const handleLoadMore = async () => {
-    if (!isLoadingOld && hasMore) {
-      setIsLoadingOld(true);
+    if (!isLoadingMore && hasMore) {
+      setIsLoadingMore(true);
       await onLoadMore();
-      setIsLoadingOld(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -91,44 +72,54 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       <div 
         id="scrollableDiv"
         className="flex-1 min-h-0 overflow-auto"
-        onScroll={handleScroll}
+        style={{ display: 'flex', flexDirection: 'column-reverse' }}
       >
-        {hasMore && isLoadingOld && (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            Loading older messages...
-          </div>
-        )}
-        {!hasMore && (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            Beginning of conversation
-          </div>
-        )}
-        <div className="w-full px-2 py-2 md:px-4 md:py-8 space-y-3 md:space-y-4">
-          {messages.map((message, index) => (
-            <div
-              key={`${message.id}-${index}`}
-              ref={index === messages.length - 1 ? lastMessageRef : null}
-            >
-              <MessageBubble 
-                message={message} 
-                onCopy={onCopy} 
-                onRegenerate={() => onRegenerate(message)}
-                onEdit={(editedMessage, newContent) => onEdit(editedMessage, newContent)}
-              />
+        <InfiniteScroll
+          dataLength={messages.length}
+          next={handleLoadMore}
+          hasMore={hasMore && !isLoadingMore}
+          loader={
+            <div className="text-center py-4 text-sm text-muted-foreground">
+              Loading older messages...
             </div>
-          ))}
-          {isAssistantResponding && (
-            <div className="flex items-start space-x-2" ref={lastMessageRef}>
-              {status === 'thinking' && (!messages?.length || messages[messages.length - 1]?.role === 'user') && (
-                <Avatar className="w-6 h-6 md:w-8 md:h-8 mr-2 flex-shrink-0">
-                  <AvatarImage src="/images/sshift-guy.png" alt="AI Avatar" />
-                  <AvatarFallback>AI</AvatarFallback>
-                </Avatar>
-              )}
-              <StatusIndicator status={status} className={status === 'thinking' && (!messages?.length || messages[messages.length - 1]?.role === 'user') ? "mt-1 md:mt-2" : ""} />
+          }
+          endMessage={
+            <div className="text-center py-4 text-sm text-muted-foreground">
+              Beginning of conversation
             </div>
-          )}
-        </div>
+          }
+          style={{ display: 'flex', flexDirection: 'column-reverse' }}
+          inverse={true}
+          scrollableTarget="scrollableDiv"
+          scrollThreshold="200px"
+        >
+          <div className="w-full px-2 py-2 md:px-4 md:py-8 space-y-3 md:space-y-4">
+            {messages.map((message, index) => (
+              <div
+                key={`${message.id}-${index}`}
+                ref={index === messages.length - 1 ? lastMessageRef : null}
+              >
+                <MessageBubble 
+                  message={message} 
+                  onCopy={onCopy} 
+                  onRegenerate={() => onRegenerate(message)}
+                  onEdit={(editedMessage, newContent) => onEdit(editedMessage, newContent)}
+                />
+              </div>
+            ))}
+            {isAssistantResponding && (
+              <div className="flex items-start space-x-2" ref={lastMessageRef}>
+                {status === 'thinking' && (!messages?.length || messages[messages.length - 1]?.role === 'user') && (
+                  <Avatar className="w-6 h-6 md:w-8 md:h-8 mr-2 flex-shrink-0">
+                    <AvatarImage src="/images/sshift-guy.png" alt="AI Avatar" />
+                    <AvatarFallback>AI</AvatarFallback>
+                  </Avatar>
+                )}
+                <StatusIndicator status={status} className={status === 'thinking' && (!messages?.length || messages[messages.length - 1]?.role === 'user') ? "mt-1 md:mt-2" : ""} />
+              </div>
+            )}
+          </div>
+        </InfiniteScroll>
       </div>
       {showNoChatsMessage && (
         <div className="absolute inset-0 flex items-center justify-center bg-background bg-opacity-50">
