@@ -58,24 +58,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         className="flex-1 min-h-0 overflow-auto flex flex-col"
         onScroll={handleScroll}
       >
+        {hasMore && (
+          <div className="text-center py-4 cursor-pointer hover:text-blue-500" onClick={onLoadMore}>
+            Load older messages...
+          </div>
+        )}
         <InfiniteScroll
           dataLength={messages.length}
           next={onLoadMore}
-          hasMore={hasMore}
-          loader={<div className="text-center py-4">Loading older messages...</div>}
+          hasMore={false}
+          loader={null}
           scrollableTarget="scrollableDiv"
           className="flex flex-col justify-end"
           inverse={false}
-          scrollThreshold="200px"
-          endMessage={
-            !isAtBottom && !hasMore ? 
+        >
+          <div className="w-full px-2 py-2 md:px-4 md:py-8 space-y-3 md:space-y-4">
+            {!isAtBottom && !hasMore && (
               <div className="text-center py-4 text-sm text-muted-foreground">
                 Beginning of conversation
               </div>
-              : null
-          }
-        >
-          <div className="w-full px-2 py-2 md:px-4 md:py-8 space-y-3 md:space-y-4">
+            )}
             {messages.map((message, index) => (
               <div
                 key={`${message.id}-${index}`}
