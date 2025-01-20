@@ -484,9 +484,10 @@ export default function ChatPage() {
       setChats(prevChats => 
         prevChats.map(chat => {
           if (chat.id === currentChatId) {
-            // Ensure messages are ordered correctly (oldest first)
-            const updatedMessages = [...chat.messages, ...newMessages]
-              .sort((a, b) => (a.created || 0) - (b.created || 0));
+            // Reverse the new messages before concatenating to maintain newest-at-bottom order
+            const reversedNewMessages = [...newMessages].reverse();
+            // Don't sort, just prepend the reversed new messages
+            const updatedMessages = [...reversedNewMessages, ...chat.messages];
 
             return {
               ...chat,
@@ -524,6 +525,8 @@ export default function ChatPage() {
       if (savedChats) {
         const updatedChats = savedChats.map((chat: Chat) => ({
           ...chat,
+          // Ensure initial messages are in newest-at-bottom order
+          messages: chat.messages ? [...chat.messages].reverse() : [],
           hasMoreMessages: totalPages > 1,
           currentPage: 1,
           totalMessages: total
