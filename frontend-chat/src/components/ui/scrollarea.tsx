@@ -9,33 +9,39 @@ const ScrollArea = React.forwardRef<
 >(({ className, children, ...props }, ref) => {
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const [isAutoScroll, setIsAutoScroll] = React.useState(true);
+  const [isInitialLoad, setIsInitialLoad] = React.useState(true);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
-  // Scroll to bottom
-  const scrollToBottom = () => {
-    if (viewportRef.current) {
+  // Scroll to bottom only on initial load or new messages
+  const scrollToBottom = React.useCallback(() => {
+    if (viewportRef.current && (isAutoScroll || isInitialLoad)) {
       viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
     }
-  };
+  }, [isAutoScroll, isInitialLoad]);
 
   // Handle new content
   React.useEffect(() => {
-    if (isAutoScroll) {
+    if (!isLoadingMore) {
       scrollToBottom();
     }
-  }, [children, isAutoScroll]);
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+    }
+  }, [children, scrollToBottom, isLoadingMore, isInitialLoad]);
 
   // Detect user scroll
-  const handleScroll = () => {
+  const handleScroll = React.useCallback(() => {
     if (viewportRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = viewportRef.current;
       // If the user is within 100px from the bottom, enable auto-scroll
-      if (scrollHeight - scrollTop - clientHeight < 100) {
-        setIsAutoScroll(true);
-      } else {
-        setIsAutoScroll(false);
-      }
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setIsAutoScroll(isNearBottom);
+      
+      // Detect loading more messages
+      const isNearTop = scrollTop < 100;
+      setIsLoadingMore(isNearTop);
     }
-  };
+  }, []);
 
   return (
     <ScrollAreaPrimitive.Root

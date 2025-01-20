@@ -41,6 +41,9 @@ interface Chat {
   createdAt?: number;
   lastUpdated?: number;
   model: string;
+  hasMoreMessages?: boolean;
+  currentPage?: number;
+  totalMessages?: number;
 }
 
 export default function ChatPage() {
@@ -57,6 +60,7 @@ export default function ChatPage() {
   const [isAssistantResponding, setIsAssistantResponding] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { jwt } = useAuth();
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const lastMessageRef = useRef<HTMLDivElement>(null);
 
@@ -454,6 +458,54 @@ export default function ChatPage() {
     }
   };
 
+  const loadMoreMessages = async () => {
+    if (!currentChatId || isLoadingMore) return;
+    
+    const currentChat = chats.find(chat => chat.id === currentChatId);
+    if (!currentChat) return;
+
+    const currentPage = currentChat.currentPage || 1;
+    const nextPage = currentPage + 1;
+
+    setIsLoadingMore(true);
+    try {
+      const response = await backend.get('/history', {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+        params: {
+          page: nextPage,
+          limit: 10
+        }
+      });
+
+      const { chats: newMessages, total, totalPages } = response.data;
+
+      setChats(prevChats => 
+        prevChats.map(chat => {
+          if (chat.id === currentChatId) {
+            // Ensure messages are ordered correctly (oldest first)
+            const updatedMessages = [...chat.messages, ...newMessages]
+              .sort((a, b) => (a.created || 0) - (b.created || 0));
+
+            return {
+              ...chat,
+              messages: updatedMessages,
+              hasMoreMessages: nextPage < totalPages,
+              currentPage: nextPage,
+              totalMessages: total
+            };
+          }
+          return chat;
+        })
+      );
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     if (!jwt) return;
 
@@ -462,16 +514,22 @@ export default function ChatPage() {
         headers: {
           Authorization: `Bearer ${jwt}`,
         },
+        params: {
+          page: 1,
+          limit: 10
+        }
       });
 
-      const savedChats = chatResponse.data;
+      const { chats: savedChats, total, totalPages } = chatResponse.data;
       if (savedChats) {
-        const updatedChats = savedChats.chats.map((chat: Chat) => ({
+        const updatedChats = savedChats.map((chat: Chat) => ({
           ...chat,
+          hasMoreMessages: totalPages > 1,
+          currentPage: 1,
+          totalMessages: total
         }));
         setChats(updatedChats);
         if (updatedChats.length > 0) {
-          // Find the most recent chat based on lastUpdated timestamp
           const mostRecentChat = updatedChats.reduce(
             (latest: Chat, current: Chat) =>
               (current.lastUpdated || 0) > (latest.lastUpdated || 0)
@@ -733,6 +791,9 @@ export default function ChatPage() {
             status={status}
             showNoChatsMessage={showNoChatsMessage}
             isAssistantResponding={isAssistantResponding}
+            hasMoreMessages={currentChat?.hasMoreMessages || false}
+            onLoadMore={loadMoreMessages}
+            isLoadingMore={isLoadingMore}
           />
           <ChatInput onSendMessage={handleSendMessage} />
         </div>
