@@ -35,7 +35,7 @@ export function UserButtonArray({ onEdit, content }: UserButtonArrayProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="active:bg-blue-200"
+            className="active:bg-blue-200 hover:bg-blue-100 hover:text-blue-900 transition-colors duration-200"
             onClick={handleEditClick}
           >
             <Check className="h-4 w-4" />
@@ -43,7 +43,7 @@ export function UserButtonArray({ onEdit, content }: UserButtonArrayProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="active:bg-blue-200"
+            className="active:bg-blue-200 hover:bg-blue-100 hover:text-blue-900 transition-colors duration-200"
             onClick={handleCancelClick}
           >
             <X className="h-4 w-4" />
@@ -53,7 +53,7 @@ export function UserButtonArray({ onEdit, content }: UserButtonArrayProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="active:bg-blue-200"
+          className="active:bg-blue-200 hover:bg-blue-100 hover:text-blue-900 transition-colors duration-200"
           onClick={handleEditClick}
         >
           <Edit2 className="h-4 w-4" />
