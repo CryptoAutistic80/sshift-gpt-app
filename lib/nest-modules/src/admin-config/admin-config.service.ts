@@ -7,6 +7,7 @@ import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 
 // Use require for JSON file since TypeScript needs special config for JSON imports
 import defaultPrompt from './defaultPrompt.json';
+import defaultReasoningPrompt from './defaultReasoningPrompt.json';
 
 @Injectable()
 export class AdminConfigService {
@@ -23,6 +24,11 @@ export class AdminConfigService {
     // Check cache
     const cached = await this.cacheManager.get<AdminConfig>(this.CACHE_KEY);
     if (cached) {
+      // Ensure cached config has reasoning prompt
+      if (!cached.reasoningPrompt) {
+        cached.reasoningPrompt = defaultReasoningPrompt.content;
+        await this.cacheManager.set(this.CACHE_KEY, cached, this.CACHE_TTL);
+      }
       return cached;
     }
 
@@ -30,6 +36,11 @@ export class AdminConfigService {
     const existingConfig = await this.adminConfigModel.findOne({}).exec();
     
     if (existingConfig) {
+      // Ensure existing config has reasoning prompt
+      if (!existingConfig.reasoningPrompt) {
+        existingConfig.reasoningPrompt = defaultReasoningPrompt.content;
+        await existingConfig.save();
+      }
       await this.cacheManager.set(this.CACHE_KEY, existingConfig, this.CACHE_TTL);
       return existingConfig;
     }
@@ -38,7 +49,8 @@ export class AdminConfigService {
     const newConfig = await this.adminConfigModel.create({
       models: [],
       tools: [],
-      systemPrompt: defaultPrompt.content
+      systemPrompt: defaultPrompt.content,
+      reasoningPrompt: defaultReasoningPrompt.content
     });
 
     await this.cacheManager.set(this.CACHE_KEY, newConfig, this.CACHE_TTL);
@@ -51,7 +63,8 @@ export class AdminConfigService {
       {
         models: adminConfigDto.models,
         tools: adminConfigDto.tools,
-        systemPrompt: adminConfigDto.systemPrompt || defaultPrompt.content
+        systemPrompt: adminConfigDto.systemPrompt || defaultPrompt.content,
+        reasoningPrompt: adminConfigDto.reasoningPrompt || defaultReasoningPrompt.content
       },
       { upsert: true, new: true }
     ).exec();

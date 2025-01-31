@@ -13,9 +13,14 @@ import { PendingActions } from '../pendingActions';
 import { GrantSubscriptions } from './grantSubscriptions';
 import PromptEditor from './promptEditor';
 
+interface PromptEditorState {
+  type: 'system' | 'reasoning' | null;
+  isOpen: boolean;
+}
+
 const AdminPage = () => {
   const { isAdmin, isPendingAdmin } = useAppManagment();
-  const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
+  const [isPromptEditorOpen, setIsPromptEditorOpen] = useState<PromptEditorState>({ type: null, isOpen: false });
 
   return (
     <div>
@@ -58,20 +63,29 @@ const AdminPage = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">
                   Prompt Management
                 </h2>
-                <button 
-                  onClick={() => setIsPromptEditorOpen(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-                >
-                  Edit System
-                </button>
+                <div className="flex justify-center space-x-4">
+                  <button 
+                    onClick={() => setIsPromptEditorOpen({ type: 'system', isOpen: true })}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    Edit System
+                  </button>
+                  <button 
+                    onClick={() => setIsPromptEditorOpen({ type: 'reasoning', isOpen: true })}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    Edit Reasoning
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         <PromptEditor 
-          isOpen={isPromptEditorOpen}
-          onClose={() => setIsPromptEditorOpen(false)}
+          isOpen={isPromptEditorOpen.isOpen}
+          onClose={() => setIsPromptEditorOpen({ type: null, isOpen: false })}
+          promptType={isPromptEditorOpen.type === null ? 'system' : isPromptEditorOpen.type}
         />
 
         {isAdmin && (

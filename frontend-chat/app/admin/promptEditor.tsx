@@ -4,6 +4,7 @@ import backend from '../../src/services/backend';
 interface PromptEditorProps {
   isOpen: boolean;
   onClose: () => void;
+  promptType: 'system' | 'reasoning';
 }
 
 // Format the prompt for display by replacing escaped characters
@@ -24,28 +25,29 @@ const formatForSaving = (prompt: string): string => {
     .replace(/\n/g, '\\n');  // Replace newlines with \n
 };
 
-const PromptEditor = ({ isOpen, onClose }: PromptEditorProps) => {
+const PromptEditor = ({ isOpen, onClose, promptType }: PromptEditorProps) => {
   const [promptContent, setPromptContent] = useState('');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const fetchSystemPrompt = async () => {
+    const fetchPrompt = async () => {
       try {
         const response = await backend.get('/admin-config');
-        setPromptContent(formatForDisplay(response.data.systemPrompt || ''));
+        const content = promptType === 'system' ? response.data.systemPrompt : response.data.reasoningPrompt;
+        setPromptContent(formatForDisplay(content || ''));
       } catch (error) {
-        console.error('Error fetching system prompt:', error);
+        console.error(`Error fetching ${promptType} prompt:`, error);
       } finally {
         setIsLoading(false);
       }
     };
 
     if (isOpen) {
-      fetchSystemPrompt();
+      fetchPrompt();
     }
-  }, [isOpen]);
+  }, [isOpen, promptType]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -71,7 +73,7 @@ const PromptEditor = ({ isOpen, onClose }: PromptEditorProps) => {
       await backend.put('/admin-config', 
         {
           ...currentConfig,
-          systemPrompt: formatForSaving(promptContent)
+          [promptType === 'system' ? 'systemPrompt' : 'reasoningPrompt']: formatForSaving(promptContent)
         },
         {
           headers: {
@@ -82,8 +84,8 @@ const PromptEditor = ({ isOpen, onClose }: PromptEditorProps) => {
       
       onClose();
     } catch (error) {
-      console.error('Error saving system prompt:', error);
-      alert('Failed to save system prompt. Please try again.');
+      console.error(`Error saving ${promptType} prompt:`, error);
+      alert(`Failed to save ${promptType} prompt. Please try again.`);
     } finally {
       setIsSaving(false);
     }
@@ -101,7 +103,9 @@ const PromptEditor = ({ isOpen, onClose }: PromptEditorProps) => {
         className="bg-white rounded-lg shadow-xl flex flex-col"
       >
         <div className="p-4 border-b">
-          <h2 className="text-2xl font-bold">Edit System Prompt</h2>
+          <h2 className="text-2xl font-bold">
+            Edit {promptType === 'system' ? 'System' : 'Reasoning'} Prompt
+          </h2>
         </div>
 
         <div className="flex-1 p-6 overflow-auto">

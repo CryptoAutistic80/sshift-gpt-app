@@ -14,6 +14,9 @@ export class AdminConfig {
 
   @Prop({ type: String, default: '' })
   systemPrompt: string;
+
+  @Prop({ type: String, default: '' })
+  reasoningPrompt: string;
 }
 
 export const AdminConfigSchema = SchemaFactory.createForClass(AdminConfig);
