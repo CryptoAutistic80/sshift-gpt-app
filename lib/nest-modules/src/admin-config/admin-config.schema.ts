@@ -7,13 +7,16 @@ export type AdminConfigDocument = HydratedDocument<AdminConfig>;
 @Schema()
 export class AdminConfig {
   @Prop({ type: [Feature] })
-  models: Feature[];
+  models!: Feature[];
 
   @Prop({ type: [Feature] })
-  tools: Feature[];
+  tools!: Feature[];
 
   @Prop({ type: String, default: '' })
-  systemPrompt: string;
+  systemPrompt!: string;
+
+  @Prop({ type: String, default: '' })
+  reasoningPrompt!: string;
 }
 
 export const AdminConfigSchema = SchemaFactory.createForClass(AdminConfig);

@@ -7,6 +7,7 @@ import tools from '../../services/tools';
 interface ImageUploadButtonProps {
   onImageSelect: (imageUrls: string[]) => void;
   uploadedImages: string[];
+  selectedModel: string;
 }
 
 // Function to resize image if needed
@@ -73,10 +74,13 @@ const resizeImageIfNeeded = async (file: File): Promise<Blob> => {
 export function ImageUploadButton({
   onImageSelect,
   uploadedImages,
+  selectedModel,
 }: ImageUploadButtonProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { jwt } = useAuth();
+
+  const isDisabled = selectedModel === 'o3-mini' || isUploading || uploadedImages.length >= 4;
 
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -134,6 +138,10 @@ export function ImageUploadButton({
       alert('Maximum 4 images allowed.');
       return;
     }
+    if (selectedModel === 'o3-mini') {
+      alert('Image upload is not available with O3-mini model.');
+      return;
+    }
     fileInputRef.current?.click();
   };
 
@@ -151,8 +159,10 @@ export function ImageUploadButton({
         variant="outline"
         size="icon-sm"
         onClick={handleButtonClick}
-        disabled={isUploading || uploadedImages.length >= 4}
-        className="bg-blue-50 border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-colors"
+        disabled={isDisabled}
+        className={`bg-blue-50 border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-colors ${
+          selectedModel === 'o3-mini' ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
       >
         {isUploading ? (
           <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin text-blue-600" />

@@ -15,7 +15,8 @@ import PromptEditor from './promptEditor';
 
 const AdminPage = () => {
   const { isAdmin, isPendingAdmin } = useAppManagment();
-  const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
+  const [isSystemPromptEditorOpen, setIsSystemPromptEditorOpen] = useState(false);
+  const [isReasoningPromptEditorOpen, setIsReasoningPromptEditorOpen] = useState(false);
 
   return (
     <div>
@@ -58,20 +59,35 @@ const AdminPage = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">
                   Prompt Management
                 </h2>
-                <button 
-                  onClick={() => setIsPromptEditorOpen(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-                >
-                  Edit System
-                </button>
+                <div className="space-x-4">
+                  <button 
+                    onClick={() => setIsSystemPromptEditorOpen(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    Edit System
+                  </button>
+                  <button 
+                    onClick={() => setIsReasoningPromptEditorOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    Edit Reasoning
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         <PromptEditor 
-          isOpen={isPromptEditorOpen}
-          onClose={() => setIsPromptEditorOpen(false)}
+          isOpen={isSystemPromptEditorOpen}
+          onClose={() => setIsSystemPromptEditorOpen(false)}
+          type="system"
+        />
+
+        <PromptEditor 
+          isOpen={isReasoningPromptEditorOpen}
+          onClose={() => setIsReasoningPromptEditorOpen(false)}
+          type="reasoning"
         />
 
         {isAdmin && (

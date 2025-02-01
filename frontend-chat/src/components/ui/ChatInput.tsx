@@ -11,11 +11,13 @@ import tools from '../../services/tools';
 interface ChatInputProps {
   onSendMessage: (message: string, imageUrls: string[]) => void;
   isGenerating?: boolean;
+  selectedModel: string;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
   isGenerating = false,
+  selectedModel,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -152,6 +154,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <ImageUploadButton
               onImageSelect={setUploadedImages}
               uploadedImages={uploadedImages}
+              selectedModel={selectedModel}
             />
             <SendButton onClick={handleSendMessage} disabled={isGenerating} />
           </div>

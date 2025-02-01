@@ -4,8 +4,8 @@ import { ValidateNested } from 'class-validator';
 import { FeatureDto } from './feature.dto';
 
 export class AdminConfigDto {
-  static fromJson(models: FeatureDto[], tools: FeatureDto[], systemPrompt: string): AdminConfigDto {
-    return new AdminConfigDto(models, tools, systemPrompt);
+  static fromJson(models: FeatureDto[], tools: FeatureDto[], systemPrompt: string, reasoningPrompt: string): AdminConfigDto {
+    return new AdminConfigDto(models, tools, systemPrompt, reasoningPrompt);
   }
 
   @ApiProperty({
@@ -30,9 +30,16 @@ export class AdminConfigDto {
   })
   systemPrompt: string;
 
-  constructor(models: FeatureDto[], tools: FeatureDto[], systemPrompt: string) {
+  @ApiProperty({
+    description: 'Reasoning prompt for advanced models',
+    type: String,
+  })
+  reasoningPrompt: string;
+
+  constructor(models: FeatureDto[], tools: FeatureDto[], systemPrompt: string, reasoningPrompt: string) {
     this.models = models;
     this.tools = tools;
     this.systemPrompt = systemPrompt;
+    this.reasoningPrompt = reasoningPrompt;
   }
 }

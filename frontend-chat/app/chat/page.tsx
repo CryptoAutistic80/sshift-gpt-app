@@ -68,7 +68,7 @@ export default function ChatPage() {
         id: uuidv4(),
         title: `New Chat ${chats.length + 1}`,
         messages: [],
-        model: 'gpt-4o-mini', // Set default model for new chats
+        model: 'gpt-4o-mini',
         createdAt: currentTime,
         lastUpdated: currentTime,
       };
@@ -80,7 +80,7 @@ export default function ChatPage() {
       });
       setChats([...chats, response.data]);
       setCurrentChatId(response.data.id);
-      setSelectedModel('gpt-4o-mini'); // Reset selected model for new chats
+      setSelectedModel('gpt-4o-mini');
     } catch (error) {
       console.error('Error creating new chat:', error);
     }
@@ -93,7 +93,7 @@ export default function ChatPage() {
         id: uuidv4(),
         title: `New Chat 1`,
         messages: [],
-        model: 'gpt-4o-mini', // Set default model for new chats
+        model: 'gpt-4o-mini',
         createdAt: currentTime,
         lastUpdated: currentTime,
       };
@@ -106,7 +106,7 @@ export default function ChatPage() {
 
       setChats([{ ...response.data }]);
       setCurrentChatId(response.data.id);
-      setSelectedModel('gpt-4o-mini'); // Reset selected model for new chats
+      setSelectedModel('gpt-4o-mini');
     } catch (error) {
       console.error('Error creating new chat:', error);
     }
@@ -156,6 +156,11 @@ export default function ChatPage() {
   };
 
   const handleModelChange = (model: string) => {
+    // Prevent selecting o3-mini model
+    if (model === 'o3-mini') {
+      return;
+    }
+    
     setSelectedModel(model);
     if (currentChatId) {
       setChats((prevChats) =>
@@ -941,6 +946,7 @@ export default function ChatPage() {
           <ChatInput
             onSendMessage={handleSendMessage}
             isGenerating={isAssistantResponding}
+            selectedModel={selectedModel}
           />
         </div>
       </div>
