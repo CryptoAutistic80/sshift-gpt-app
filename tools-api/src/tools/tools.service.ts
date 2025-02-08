@@ -51,20 +51,24 @@ export class ToolsService {
   async createSoundEffect(
     createSoundEffectDto: CreateSoundEffectDto
   ): Promise<ISoundEffect> {
-    const { text, prompt_influence = 1.0 } = createSoundEffectDto;
+    const { text, prompt_influence } = createSoundEffectDto;
     this.logger.log('Generating sound effect with prompt:', text);
 
     let { duration_seconds } = createSoundEffectDto;
 
-    if (!duration_seconds || duration_seconds < 0.5 || duration_seconds > 22) {
-      duration_seconds = 15;
+    // Validate duration within schema constraints (1-20 seconds)
+    if (!duration_seconds || duration_seconds < 1 || duration_seconds > 20) {
+      duration_seconds = 10; // Default to 10 seconds if invalid
     }
+
+    // Validate prompt_influence within schema constraints (0-1)
+    const validatedPromptInfluence = Math.max(0, Math.min(1, prompt_influence));
 
     // Generate sound effect
     const audioBuffer = await this.elevenLabsService.generateSoundEffect(
       text,
       duration_seconds,
-      prompt_influence
+      validatedPromptInfluence
     );
 
     // Create a sanitized filename from the text
@@ -646,10 +650,13 @@ export class ToolsService {
     const data = await response.data;
     this.logger.log('Perplexity API response data:', data);
 
-    return {
+    const responseDto = {
       error: false,
-      result: data.choices[0].message.content,
+      result: data.choices && data.choices.length > 0 ? data.choices[0].message.content : '',
+      message: data.message || '',
+      citations: data.citations || []
     };
+    return responseDto;
   }
 
   async queryArxiv(searchQueryDto: SearchArxivDto) {

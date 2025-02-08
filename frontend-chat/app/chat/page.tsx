@@ -197,6 +197,12 @@ export default function ChatPage() {
               updatedMessages.length === 1
                 ? inputMessage.split(' ').slice(0, 5).join(' ') + '...'
                 : chat.title;
+            
+            // If this is the first message, persist the auto-generated title
+            if (updatedMessages.length === 1) {
+              handleRenameChat(chat.id, updatedTitle);
+            }
+            
             return {
               ...chat,
               messages: updatedMessages,

@@ -70,7 +70,17 @@ export class AgentService {
         )
       );
 
-      return response.data;
+      const data = response.data;
+      if (data && data.result && Array.isArray(data.citations) && data.citations.length > 0) {
+        data.result = data.result.replace(/\[(\d+)\]/g, (match, p1) => {
+          const index = parseInt(p1, 10);
+          if (index >= 1 && index <= data.citations.length) {
+            return `[${index}](${data.citations[index - 1]})`;
+          }
+          return match;
+        });
+      }
+      return data;
     } catch (error) {
       console.error('Error in searchWeb:', error);
       return {

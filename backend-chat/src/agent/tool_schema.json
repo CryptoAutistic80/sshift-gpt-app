@@ -32,7 +32,7 @@
     "type": "function",
     "function": {
       "name": "searchWeb",
-      "description": "Performs a web search for the given query and returns text content with an array of citations.",
+      "description": "Performs a web search for the given query and returns text content with an array of citations. The returned content is comprehensive and should be provided in full to the user (DO NOT SUMMERIZE IT), with only additonal thoughts and commentary to the response content in your unique style.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -228,7 +228,7 @@
     "type": "function",
     "function": {
       "name": "createSoundEffect",
-      "description": "Generates a sound effect based on user input.",
+      "description": "Generates a sound effect based on a provided descriptive prompt.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -238,11 +238,11 @@
           },
           "duration_seconds": {
             "type": "number",
-            "description": "The duration of the sound in seconds."
+            "description": "The duration of the sound in seconds - minimum 0.5, maximum 20."
           },
           "prompt_influence": {
             "type": "number",
-            "description": "Controls how closely to follow the provided description."
+            "description": "Controls how closely to follow the provided description - minimum 0, maximum 1."
           }
         },
         "required": ["text", "duration_seconds", "prompt_influence"],

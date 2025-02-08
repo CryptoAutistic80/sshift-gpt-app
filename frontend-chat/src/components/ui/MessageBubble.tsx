@@ -7,6 +7,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { AssistantButtonArray } from './assistantButtonArray';
 import { UserButtonArray } from './userButtonArray';
 import { IMessage } from '@helpers';
+import { MathRender } from './mathRender';
 
 interface MessageBubbleProps {
   message: IMessage;
@@ -99,7 +100,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       );
     }
 
-    // For user messages, use simple text rendering with media support
     if (isUser) {
       return (
         <>
@@ -145,7 +145,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     return (
       <>
-        <ReactMarkdown
+        <MathRender
+          content={parsedContent.text}
           components={{
             code: ({ node, inline, className, children, ...props }: any) => {
               const match = /language-(\w+)/.exec(className || '');
@@ -161,30 +162,27 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </code>
               );
             },
-            h1: ({ children }) => (
+            h1: ({ children }: any) => (
               <h1 className="text-base font-bold mb-2 min-[768px]:text-2xl">
                 {children}
               </h1>
             ),
-            h2: ({ children }) => (
+            h2: ({ children }: any) => (
               <h2 className="text-sm font-bold mb-2 min-[768px]:text-xl">
                 {children}
               </h2>
             ),
-            h3: ({ children }) => (
+            h3: ({ children }: any) => (
               <h3 className="text-sm font-bold mb-2 min-[768px]:text-lg">
                 {children}
               </h3>
             ),
-            p: ({ children }) => {
-              return (
-                <div className="mb-2 text-sm min-[768px]:text-base">
-                  {children}
-                </div>
-              );
-            },
-            a: ({ href, children }) => {
-              // Handle audio files by rendering the AudioPlayer component
+            p: ({ children }: any) => (
+              <div className="mb-2 text-sm min-[768px]:text-base">
+                {children}
+              </div>
+            ),
+            a: ({ href, children }: any) => {
               if (href && href.endsWith('.mp3')) {
                 return <AudioPlayer src={href} />;
               }
@@ -199,14 +197,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </a>
               );
             },
-            ul: ({ children }) => (
+            ul: ({ children }: any) => (
               <ul className="list-disc pl-4 mb-2">{children}</ul>
             ),
-            ol: ({ children }) => (
+            ol: ({ children }: any) => (
               <ol className="list-decimal pl-4 mb-2">{children}</ol>
             ),
-            li: ({ children }) => <li className="mb-1">{children}</li>,
-            img: ({ src, alt }) => (
+            li: ({ children }: any) => <li className="mb-1">{children}</li>,
+            img: ({ src, alt }: any) => (
               <ImageThumbnail
                 src={src || ''}
                 onClick={() =>
@@ -222,9 +220,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             ),
           }}
           className="prose max-w-none"
-        >
-          {parsedContent.text}
-        </ReactMarkdown>
+        />
 
         {message.images && message.images.length > 0 && (
           <div className="mt-2 flex gap-2 overflow-x-auto">
