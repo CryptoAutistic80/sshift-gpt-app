@@ -49,7 +49,6 @@ export class AgentController {
 
     const isReasoning = reasoning.includes(newMessageDto.model);
     const isParallelToolCalling = modelWithCallFeature.includes(newMessageDto.model);
-    const isSequentialToolCalling = reasoning.includes(newMessageDto.model);
 
     const chat = await this.userService.updateChat(
       userAuth.address,
@@ -139,9 +138,9 @@ export class AgentController {
         reasoning_effort: isReasoning ? 'high' : undefined,
         tools: toolSchema as OpenAI.Chat.Completions.ChatCompletionTool[],
         tool_choice: 'auto',
-        ...(isParallelToolCalling || isSequentialToolCalling
+        ...(isParallelToolCalling
           ? {
-              parallel_tool_calls: isParallelToolCalling,
+              parallel_tool_calls: true,
             }
           : undefined),
       });
@@ -205,9 +204,9 @@ export class AgentController {
             stream: true,
             tools: toolSchema as OpenAI.Chat.Completions.ChatCompletionTool[],
             tool_choice: 'auto',
-            ...(isParallelToolCalling || isSequentialToolCalling
+            ...(isParallelToolCalling
               ? {
-                  parallel_tool_calls: isParallelToolCalling,
+                  parallel_tool_calls: true,
                 }
               : undefined),
           });
