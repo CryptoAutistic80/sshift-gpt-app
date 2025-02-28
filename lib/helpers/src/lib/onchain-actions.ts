@@ -77,7 +77,7 @@ export const executeAction = async (
         return balance;
       }
       const balance = await agent.aptos.getAccountAPTAmount({
-        accountAddress: walletAddress,
+        accountAddress: walletAddress as string,
       });
 
       const convertedBalance = convertAmountFromOnChainToHumanReadable(
@@ -252,7 +252,7 @@ export const executeAction = async (
     case 'joule_get_user_position': {
       const args = values as [AccountAddress, string];
 
-      args[0] = AccountAddress.from(walletAddress);
+      args[0] = AccountAddress.from(walletAddress as string);
 
       return agent.getUserPosition(...args);
     }

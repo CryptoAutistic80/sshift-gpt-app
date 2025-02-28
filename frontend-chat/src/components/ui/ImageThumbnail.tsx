@@ -1,7 +1,8 @@
-import React from 'react';
-import { Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Pencil } from 'lucide-react';
 import backend from '../../services/backend';
 import { useAuth } from '../../context/AuthProvider';
+import { ImageEditModal } from './ImageEditModal';
 
 interface ImageThumbnailProps {
   src: string;
@@ -17,6 +18,7 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
   isAssistantMessage,
 }) => {
   const { jwt, walletAddress } = useAuth();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const downloadImage = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -149,27 +151,47 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
     }
   };
 
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditModalOpen(true);
+  };
+
   return (
-    <div className="cursor-pointer relative" onClick={onClick}>
-      <img
-        src={src}
-        alt="Generated or Uploaded"
-        className={`rounded ${
-          isAssistantMessage
-            ? isExpanded
-              ? 'max-w-full w-full h-auto'
+    <>
+      <div className="cursor-pointer relative" onClick={onClick}>
+        <img
+          src={src}
+          alt="Generated or Uploaded"
+          className={`rounded ${
+            isAssistantMessage
+              ? isExpanded
+                ? 'max-w-full w-full h-auto'
+                : 'max-w-[100px] max-h-[100px]'
               : 'max-w-[100px] max-h-[100px]'
-            : 'max-w-[100px] max-h-[100px]'
-        } object-cover transition-all duration-200`}
+          } object-cover transition-all duration-200`}
+        />
+        {isAssistantMessage && isExpanded && (
+          <div className="absolute bottom-2 right-2 flex gap-2">
+            <div
+              className="p-1.5 hover:bg-white/10 transition-colors rounded"
+              onClick={handleEdit}
+            >
+              <Pencil className="h-5 w-5 text-white" />
+            </div>
+            <div
+              className="p-1.5 hover:bg-white/10 transition-colors rounded"
+              onClick={downloadImage}
+            >
+              <Download className="h-5 w-5 text-white" />
+            </div>
+          </div>
+        )}
+      </div>
+      <ImageEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        imageUrl={src}
       />
-      {isAssistantMessage && isExpanded && (
-        <div
-          className="absolute bottom-2 right-2 p-1.5 hover:bg-white/10 transition-colors rounded"
-          onClick={downloadImage}
-        >
-          <Download className="h-5 w-5 text-white" />
-        </div>
-      )}
-    </div>
+    </>
   );
 }; 

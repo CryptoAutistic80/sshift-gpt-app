@@ -28,6 +28,9 @@ export class BucketService {
       }
       buffer = await response.arrayBuffer();
     } else {
+      if (!bufferFile) {
+        throw new Error('Buffer file is undefined');
+      }
       buffer = bufferFile;
     }
 
@@ -56,6 +59,37 @@ export class BucketService {
       });
 
       blobStream.end(Buffer.from(buffer));
+    })) as Pick<IImage, 'url'>;
+
+    return response;
+  }
+
+  async uploadMaskToBucket(bufferFile: ArrayBuffer): Promise<Pick<IImage, 'url'>> {
+    const bucketName = 'sshift-gpt-bucket';
+    const filename = `masks/${uuidv4()}-image-mask.png`;
+    const bucket = this.storage.bucket(bucketName);
+    const blob = bucket.file(filename);
+    const blobStream = blob.createWriteStream({
+      resumable: false,
+      gzip: true,
+      metadata: {
+        contentType: 'image/png',
+      },
+    });
+
+    const response = (await new Promise((resolve, reject) => {
+      blobStream.on('error', (err) => {
+        this.logger.error('Upload error:', err);
+        reject(err);
+      });
+
+      blobStream.on('finish', () => {
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
+        this.logger.log('Mask upload successful:', publicUrl);
+        resolve({ url: publicUrl });
+      });
+
+      blobStream.end(Buffer.from(bufferFile));
     })) as Pick<IImage, 'url'>;
 
     return response;

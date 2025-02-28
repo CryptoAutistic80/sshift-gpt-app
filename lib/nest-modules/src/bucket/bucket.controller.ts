@@ -54,6 +54,27 @@ export class BucketController {
     return response;
   }
 
+  @Post('mask')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadMask(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 4 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: /^image\/.*/ }),
+        ],
+      })
+    )
+    file: Express.Multer.File
+  ) {
+    if (!file) {
+      throw new BadRequestException('No mask file uploaded');
+    }
+
+    const response = this.bucketService.uploadMaskToBucket(file.buffer);
+    return response;
+  }
+
   @Get('download/:filename')
   async downloadImage(
     @Param('filename') filename: string,
@@ -69,7 +90,8 @@ export class BucketController {
       });
       stream.pipe(res);
     } catch (error) {
-      this.logger.error(`Error downloading file: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error downloading file: ${errorMessage}`);
       res.status(404).json({ message: 'File not found' });
     }
   }
