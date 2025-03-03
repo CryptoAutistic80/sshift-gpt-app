@@ -1,6 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { GenerateDTO } from './dto/generate.dto';
 import { BucketService, ConfigService, CreationService, CreationType } from '@nest-modules';
+import { ModelType, AspectRatio, MagicPromptOption, StyleType } from '../../../lib/nest-modules/src/user/creations/creation.schema';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { EditDTO } from './dto/edit.dto';
@@ -20,6 +21,35 @@ export class IdeogramService {
     this.baseUrl = this.configService.get('ideogram.baseUrl');
     this.apiKey = this.configService.get('ideogram.apiKey');
   }
+
+  private validateAndConvertModel(model: string): ModelType {
+    if (Object.values(ModelType).includes(model as ModelType)) {
+      return model as ModelType;
+    }
+    throw new BadRequestException(`Invalid model type: ${model}`);
+  }
+
+  private validateAndConvertAspectRatio(aspectRatio: string): AspectRatio {
+    if (Object.values(AspectRatio).includes(aspectRatio as AspectRatio)) {
+      return aspectRatio as AspectRatio;
+    }
+    throw new BadRequestException(`Invalid aspect ratio: ${aspectRatio}`);
+  }
+
+  private validateAndConvertMagicPromptOption(option: string): MagicPromptOption {
+    if (Object.values(MagicPromptOption).includes(option as MagicPromptOption)) {
+      return option as MagicPromptOption;
+    }
+    throw new BadRequestException(`Invalid magic prompt option: ${option}`);
+  }
+
+  private validateAndConvertStyleType(style: string): StyleType {
+    if (Object.values(StyleType).includes(style as StyleType)) {
+      return style as StyleType;
+    }
+    throw new BadRequestException(`Invalid style type: ${style}`);
+  }
+
   async generateIdeogram(generateDto: GenerateDTO, userId?: string) {
     this.logger.log(`[START] Generating ideogram with prompt: "${generateDto.prompt.substring(0, 50)}..." for user: ${userId || 'anonymous'}`);
     
@@ -54,7 +84,11 @@ export class IdeogramService {
             imageUrl: url,
             type: CreationType.ORIGINAL,
             prompt: generateDto.prompt,
-            model: generateDto.model
+            model: this.validateAndConvertModel(generateDto.model),
+            aspectRatio: this.validateAndConvertAspectRatio(generateDto.aspect_ratio),
+            magicPromptOption: this.validateAndConvertMagicPromptOption(generateDto.magic_prompt_option),
+            styleType: this.validateAndConvertStyleType(generateDto.style_type),
+            seed: generateDto.seed
           });
           this.logger.log(`[SUCCESS] Original creation stored successfully with ID: ${creation['_id']}`);
         } catch (error) {

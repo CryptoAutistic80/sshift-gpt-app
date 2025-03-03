@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ModelType, MagicPromptOption } from '../../../../lib/nest-modules/src/user/creations/creation.schema';
 
 export class EditDTO {
   @ApiProperty({
@@ -21,18 +22,18 @@ export class EditDTO {
 
   @ApiProperty({
     description: 'Model to use for editing the image. Only V_2 and V_2_TURBO are supported.',
-    example: 'V_2',
-    enum: ['V_2', 'V_2_TURBO'],
+    example: ModelType.V_2,
+    enum: [ModelType.V_2, ModelType.V_2_TURBO],
   })
-  model: string;
+  model: ModelType;
 
   @ApiProperty({
     description: 'Magic prompt option',
-    example: 'AUTO',
-    enum: ['AUTO'],
-    default: 'AUTO',
+    example: MagicPromptOption.AUTO,
+    enum: [MagicPromptOption.AUTO],
+    default: MagicPromptOption.AUTO,
   })
-  magic_prompt_option: string = 'AUTO';
+  magic_prompt_option: MagicPromptOption = MagicPromptOption.AUTO;
 
   @ApiProperty({
     description: 'Number of images to generate',
