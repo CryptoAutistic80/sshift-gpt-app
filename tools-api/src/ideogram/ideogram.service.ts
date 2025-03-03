@@ -1,6 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { GenerateDTO } from './dto/generate.dto';
-import { BucketService, ConfigService } from '@nest-modules';
+import { BucketService, ConfigService, CreationService, CreationType } from '@nest-modules';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { EditDTO } from './dto/edit.dto';
@@ -14,80 +14,94 @@ export class IdeogramService {
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
-    private readonly bucketService: BucketService
+    private readonly bucketService: BucketService,
+    private readonly creationService: CreationService
   ) {
     this.baseUrl = this.configService.get('ideogram.baseUrl');
     this.apiKey = this.configService.get('ideogram.apiKey');
   }
-  async generateIdeogram(generateDto: GenerateDTO) {
-    const response = await firstValueFrom(
-      this.httpService.post(
-        `${this.baseUrl}/generate`,
-        {
-          image_request: generateDto,
-        },
-        {
-          headers: {
-            'Api-key': this.apiKey,
-            'Content-Type': 'application/json',
+  async generateIdeogram(generateDto: GenerateDTO, userId?: string) {
+    this.logger.log(`[START] Generating ideogram with prompt: "${generateDto.prompt.substring(0, 50)}..." for user: ${userId || 'anonymous'}`);
+    
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${this.baseUrl}/generate`,
+          {
+            image_request: generateDto,
           },
+          {
+            headers: {
+              'Api-key': this.apiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      );
+
+      this.logger.log(`[SUCCESS] Received response from Ideogram API for generation`);
+      const imageData = response.data?.data?.[0];
+
+      this.logger.log(`[PROCESSING] Uploading generated image to bucket`);
+      const { url } = await this.bucketService.uploadImageToBucket(imageData.url);
+      this.logger.log(`[SUCCESS] Image uploaded to bucket: ${url.substring(0, 50)}...`);
+
+      // Store the creation if userId is provided
+      if (userId) {
+        this.logger.log(`[STORING] Saving original creation to database for user: ${userId}`);
+        try {
+          const creation = await this.creationService.createCreation(userId, {
+            imageUrl: url,
+            type: CreationType.ORIGINAL,
+            prompt: generateDto.prompt,
+            model: generateDto.model
+          });
+          this.logger.log(`[SUCCESS] Original creation stored successfully with ID: ${creation['_id']}`);
+        } catch (error) {
+          this.logger.error(`[ERROR] Failed to store original creation: ${error.message}`);
+          // Continue execution even if storage fails
         }
-      )
-    );
+      } else {
+        this.logger.warn(`[SKIPPED] No userId provided, skipping creation storage`);
+      }
 
-    const imageData = response.data?.data?.[0];
-
-    const { url } = await this.bucketService.uploadImageToBucket(imageData.url);
-
-    return {
-      ...imageData,
-      url,
-    };
+      return {
+        ...imageData,
+        url,
+      };
+    } catch (error) {
+      this.logger.error(`[ERROR] Failed to generate ideogram: ${error.message}`);
+      throw error;
+    }
   }
 
-  async editImage(editDto: EditDTO) {
-    // Download both images
+  async editImage(editDto: EditDTO, userId?: string) {
+    this.logger.log(`[START] Editing image with prompt: "${editDto.prompt.substring(0, 50)}..." for user: ${userId || 'anonymous'}`);
+    
     try {
-      this.logger.log('Starting image edit process with:', editDto);
+      const formData = new FormData();
       
+      // Download original image
       const imageResponse = await firstValueFrom(
         this.httpService.get(editDto.imageUrl, { responseType: 'arraybuffer' })
       );
-      this.logger.log('Original image downloaded, size:', imageResponse.data.byteLength);
+      this.logger.log(`[SUCCESS] Original image downloaded`);
       
+      // Download mask
       const maskResponse = await firstValueFrom(
         this.httpService.get(editDto.maskUrl, { responseType: 'arraybuffer' })
       );
-      this.logger.log('Mask image downloaded, size:', maskResponse.data.byteLength);
-
-      // Verify dimensions explicitly
-      const originalImage = Buffer.from(imageResponse.data);
-      const maskImage = Buffer.from(maskResponse.data);
-      const sizeOf = require('image-size');
-      const originalDimensions = sizeOf(originalImage);
-      const maskDimensions = sizeOf(maskImage);
-
-      this.logger.log('Original image dimensions:', originalDimensions);
-      this.logger.log('Mask image dimensions:', maskDimensions);
-
-      if (originalDimensions.width !== maskDimensions.width || originalDimensions.height !== maskDimensions.height) {
-        throw new BadRequestException('Dimension mismatch between original image and mask');
-      }
+      this.logger.log(`[SUCCESS] Mask image downloaded`);
 
       // Create form data
-      const formData = new FormData();
-      formData.append(
-        'image_file',
-        new Blob([imageResponse.data]),
-        'image.png'
-      );
+      formData.append('image_file', new Blob([imageResponse.data]), 'image.png');
       formData.append('mask', new Blob([maskResponse.data]), 'mask.png');
       formData.append('prompt', editDto.prompt);
       formData.append('model', editDto.model);
       formData.append('magic_prompt_option', editDto.magic_prompt_option);
       formData.append('num_images', editDto.num_images.toString());
 
-      this.logger.log('Sending edit request to Ideogram API with model:', editDto.model);
+      this.logger.log(`[PROCESSING] Sending edit request to Ideogram API with model: ${editDto.model}`);
       
       const response = await firstValueFrom(
         this.httpService.post(`${this.baseUrl}/edit`, formData, {
@@ -98,26 +112,39 @@ export class IdeogramService {
         })
       );
       
-      this.logger.log('Received response from Ideogram API');
+      this.logger.log('[SUCCESS] Received response from Ideogram API for edit');
       const imageData = response.data?.data?.[0];
-      const { url } = await this.bucketService.uploadImageToBucket(
-        imageData.url
-      );
-      this.logger.log('Edited image uploaded to bucket:', url);
+      
+      this.logger.log(`[PROCESSING] Uploading edited image to bucket`);
+      const { url } = await this.bucketService.uploadImageToBucket(imageData.url);
+      this.logger.log(`[SUCCESS] Edited image uploaded to bucket: ${url.substring(0, 50)}...`);
+
+      // Store the creation if userId is provided
+      if (userId) {
+        this.logger.log(`[STORING] Saving edit creation to database for user: ${userId}`);
+        try {
+          const creation = await this.creationService.createCreation(userId, {
+            imageUrl: url,
+            type: CreationType.EDIT,
+            prompt: editDto.prompt,
+            model: editDto.model
+          });
+          this.logger.log(`[SUCCESS] Edit creation stored successfully with ID: ${creation['_id']}`);
+        } catch (error) {
+          this.logger.error(`[ERROR] Failed to store edit creation: ${error.message}`);
+          // Continue execution even if storage fails
+        }
+      } else {
+        this.logger.warn(`[SKIPPED] No userId provided, skipping creation storage`);
+      }
 
       return {
         ...imageData,
         url,
       };
     } catch (error) {
-      this.logger.error(
-        'Error editing image:',
-        error.response?.data || error.message
-      );
-      throw new HttpException(
-        error.response?.data?.message || 'Failed to edit image',
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      this.logger.error(`[ERROR] Error editing image: ${error.message}`);
+      throw error;
     }
   }
 }

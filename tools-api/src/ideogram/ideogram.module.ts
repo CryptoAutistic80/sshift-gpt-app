@@ -2,6 +2,7 @@ import {
   AdminConfigModule,
   BucketModule,
   ConfigModule,
+  CreationModule,
   UserModule,
 } from '@nest-modules';
 import { HttpModule } from '@nestjs/axios';
@@ -16,6 +17,7 @@ import { IdeogramController } from './ideogram.controller';
     BucketModule,
     AdminConfigModule,
     UserModule,
+    CreationModule,
   ],
   providers: [IdeogramService],
   controllers: [IdeogramController],
