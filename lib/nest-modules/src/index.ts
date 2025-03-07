@@ -17,3 +17,6 @@ export { BucketService } from './bucket/bucket.service';
 export { GPTModule } from './gpt/gpt.module';
 export { StorageModule } from './storage/storage.module';
 export { OnchainAgentModule } from './onchain-agent/onchain-agent.module';
+export { CreationModule } from './user/creations/creation.module';
+export { CreationService } from './user/creations/creation.service';
+export { Creation, CreationType } from './user/creations/creation.schema';

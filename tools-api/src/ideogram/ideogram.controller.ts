@@ -5,6 +5,7 @@ import { IdeogramService } from './ideogram.service';
 import { GenerateDTO } from './dto/generate.dto';
 import { GetGeneratedImageDto } from './dto/get-generated-image.dto';
 import { EditDTO } from './dto/edit.dto';
+import { UserAuth } from '@nest-modules';
 
 @Controller('ideogram')
 @ApiBearerAuth('Authorization')
@@ -16,10 +17,20 @@ export class IdeogramController {
   constructor(private readonly ideogramService: IdeogramService) {}
 
   @Post('generate')
-  generateIdeogram(
-    @Body() generateDto: GenerateDTO
+  async generateIdeogram(
+    @Body() generateDto: GenerateDTO,
+    @UserAuth() user: any
   ): Promise<GetGeneratedImageDto[]> {
-    return this.ideogramService.generateIdeogram(generateDto);
+    const userId = user.address;
+    this.logger.log(`[API] Received generate request from user ${userId} with prompt: "${generateDto.prompt.substring(0, 50)}..."`);
+    try {
+      const result = await this.ideogramService.generateIdeogram(generateDto, userId);
+      this.logger.log(`[API] Successfully generated image for user ${userId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`[API] Error generating image for user ${userId}: ${error.message}`);
+      throw error;
+    }
   }
 
   @Post('edit')
@@ -28,7 +39,19 @@ export class IdeogramController {
     description: 'Image edited successfully',
     type: GetGeneratedImageDto,
   })
-  editImage(@Body() editDto: EditDTO): Promise<GetGeneratedImageDto> {
-    return this.ideogramService.editImage(editDto);
+  async editImage(
+    @Body() editDto: EditDTO,
+    @UserAuth() user: any
+  ): Promise<GetGeneratedImageDto> {
+    const userId = user.address;
+    this.logger.log(`[API] Received edit request from user ${userId} with prompt: "${editDto.prompt.substring(0, 50)}..."`);
+    try {
+      const result = await this.ideogramService.editImage(editDto, userId);
+      this.logger.log(`[API] Successfully edited image for user ${userId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`[API] Error editing image for user ${userId}: ${error.message}`);
+      throw error;
+    }
   }
 }
