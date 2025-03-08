@@ -20,7 +20,8 @@ export const UserProfileContainer: React.FC<UserProfileContainerProps> = ({
   qribbleNFTsOwned,
   sshiftRecordsOwned,
 }) => {
-  const { isSubscriptionActive, expirationDate } = useAppManagment();
+  const { isSubscriptionActive, isCollector, expirationDate } =
+    useAppManagment();
   const router = useRouter();
   const { chain } = useChain();
 
@@ -161,6 +162,7 @@ export const UserProfileContainer: React.FC<UserProfileContainerProps> = ({
           whitespace-nowrap
           mt-auto
         `}
+        disabled={!isSubscriptionActive && !isCollector}
         onClick={handleEnterSShiftGPT}
       >
         ENTER SSHIFT GPT
