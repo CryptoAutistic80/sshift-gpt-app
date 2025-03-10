@@ -22,44 +22,40 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
 
   const downloadImage = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    let filename;
+    
     try {
-      console.log('Source URL:', src);
-      const urlObj = new URL(src);
-      const segments = urlObj.pathname.split('/');
-      console.log('URL segments:', segments);
-      const bucketIndex = segments.findIndex(seg => seg === 'sshift-gpt-bucket');
-      console.log('Bucket index:', bucketIndex);
-      if (bucketIndex < 0 || bucketIndex === segments.length - 1) {
-        throw new Error('Cannot extract filename');
+      // Extract filename from URL
+      let filename;
+      try {
+        const urlObj = new URL(src);
+        const segments = urlObj.pathname.split('/');
+        const bucketIndex = segments.findIndex(seg => seg === 'sshift-gpt-bucket');
+        if (bucketIndex < 0 || bucketIndex === segments.length - 1) {
+          throw new Error('Cannot extract filename');
+        }
+        filename = segments.slice(bucketIndex + 1).join('/');
+        console.log('Extracted filename:', filename);
+      } catch (err) {
+        console.error('Error extracting filename', err);
+        filename = 'image.png';
       }
-      filename = segments.slice(bucketIndex + 1).join('/');
-      console.log('Extracted filename:', filename);
-    } catch (err) {
-      console.error('Error extracting filename', err);
-      return;
-    }
 
-    // Get the base URL from the backend service
-    const baseUrl = backend.defaults.baseURL;
-    if (!baseUrl) {
-      console.error('Backend API URL is not defined');
-      alert('Server configuration error. Please contact support.');
-      return;
-    }
+      // Get the base URL from the backend service
+      const baseUrl = backend.defaults.baseURL;
+      if (!baseUrl) {
+        console.error('Backend API URL is not defined');
+        alert('Server configuration error. Please contact support.');
+        return;
+      }
 
-    // Construct the full API URL, ensuring no double slashes
-    const apiUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    // Remove /chat-api since it's already in the baseUrl, and ensure we're using the correct bucket route
-    const downloadUrl = `${apiUrl}/bucket/download/${encodeURIComponent(filename)}`;
-    console.log('Download URL:', downloadUrl);
+      // Construct the full API URL, ensuring no double slashes
+      const apiUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      // Remove /chat-api since it's already in the baseUrl, and ensure we're using the correct bucket route
+      const downloadUrl = `${apiUrl}/bucket/download/${encodeURIComponent(filename)}`;
+      console.log('Download URL:', downloadUrl);
 
-    try {
-      console.log('Initiating download request...');
-
+      // Get authentication token
       let token = jwt;
-      console.log('Token from AuthContext:', token ? 'Token exists' : 'No token found in context');
-
       if (!token) {
         const stored = window.localStorage.getItem('jwt');
         if (stored) {
@@ -84,11 +80,11 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
         }
       }
 
-      console.log('Final token being used:', token ? 'Token exists' : 'No token found');
       if (!token) {
         throw new Error('No authentication token found');
       }
 
+      // Fetch the image
       const response = await fetch(downloadUrl, {
         method: 'GET',
         headers: {
@@ -98,7 +94,6 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
         credentials: 'include',
         mode: 'cors'
       });
-      console.log('Response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -107,54 +102,43 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
       }
       
       const blob = await response.blob();
-      console.log('Blob received:', blob.type, blob.size);
+      const url = URL.createObjectURL(blob);
+      const displayFilename = filename.split('/').pop() || 'image.png';
 
-      // Check if we're on a mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      
+
       if (isMobile) {
-        // For mobile devices, use the Web Share API if available
-        if (navigator.share && navigator.canShare) {
+        // Try Web Share API first
+        if (navigator.canShare && navigator.canShare({ files: [] })) {
           try {
-            const file = new File([blob], filename.split('/').pop() || 'image.png', { 
-              type: blob.type 
-            });
-            
-            const shareData = {
+            const file = new File([blob], displayFilename, { type: blob.type });
+            await navigator.share({
               files: [file],
-              title: 'Download Image',
-              text: 'Image from SShift'
-            };
-            
-            if (navigator.canShare(shareData)) {
-              await navigator.share(shareData);
-              console.log('Mobile share successful');
-              return;
-            } else {
-              console.log('Web Share API cannot share this content, falling back');
-            }
+              title: 'Image',
+              text: 'Image from SShift',
+            });
+            URL.revokeObjectURL(url);
+            return;
           } catch (err) {
-            console.error('Error using Web Share API:', err);
-            // Fall back to traditional method if sharing fails
+            console.warn('Share failed, falling back to new-tab:', err);
           }
         }
-        
-        // Fallback for mobile if Web Share API is not available or fails
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename.split('/').pop() || 'download.png';
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        console.log('Mobile download initiated via fallback method');
-      } else if ('showSaveFilePicker' in window) {
+
+        // Mobile fallback: open image in new tab
+        const newTab = window.open(url, '_blank');
+        if (!newTab) {
+          alert('Please allow pop-ups or manually save the image by long-pressing on it.');
+        }
+        // Don't revoke URL immediately as the new tab needs it
+        setTimeout(() => URL.revokeObjectURL(url), 60000); // Revoke after 1 minute
+        return;
+      }
+
+      // Desktop devices
+      if ('showSaveFilePicker' in window) {
         console.log('Using File System Access API');
         const options = {
-          suggestedName: filename.split('/').pop(),
+          suggestedName: displayFilename,
           types: [
             {
               description: 'Image file',
@@ -168,44 +152,38 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
+          URL.revokeObjectURL(url);
           console.log('File saved successfully using File System Access API');
+          return;
         } catch (err) {
-          console.error('Error using File System Access API:', err);
           // Check if this is a user abort error (user canceled the save dialog)
           if (err instanceof Error && 
               (err.name === 'AbortError' || err.message.includes('user aborted') || err.message.includes('cancel'))) {
             console.log('User canceled the save dialog');
+            URL.revokeObjectURL(url);
             return; // Exit gracefully without showing an error
           }
-          // Only fallback to traditional download for non-cancellation errors
-          console.log('Falling back to traditional download method');
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename.split('/').pop() || 'download.png';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
+          
+          console.error('Error using File System Access API:', err);
+          // Fall through to traditional download method
         }
-      } else {
-        console.log('Using traditional download method');
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename.split('/').pop() || 'download.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        console.log('Traditional download initiated');
       }
+      
+      // Traditional download method for desktop
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = displayFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log('Traditional download initiated');
+
     } catch (error) {
       console.error('Error during download:', error);
-      // More specific error message for mobile devices
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
-        alert('Could not download image. Please try again or take a screenshot.');
+        alert('Could not download image. Try taking a screenshot or opening the image in a new tab.');
       } else {
         alert('Failed to download image. Please try again.');
       }

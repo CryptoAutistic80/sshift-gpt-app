@@ -52,6 +52,74 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const positionStart = useRef({ x: 0, y: 0 });
+  const touchStartTimeRef = useRef<number>(0);
+  const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isTouchIntentDetermined = useRef<boolean>(false);
+
+  // Add effect to ensure canvas dimensions match image while preserving content during zoom
+  useEffect(() => {
+    if (imageLoaded && imageRef.current && canvasRef.current && ctx && scale !== 1) {
+      // Get current canvas content
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) return;
+      
+      // Set temp canvas to same dimensions as current canvas and copy content
+      tempCanvas.width = canvasRef.current.width;
+      tempCanvas.height = canvasRef.current.height;
+      tempCtx.drawImage(canvasRef.current, 0, 0);
+      
+      // Update canvas style dimensions to match image
+      const imgRect = imageRef.current.getBoundingClientRect();
+      const canvasStyle = canvasRef.current.style;
+      canvasStyle.width = `${imgRect.width}px`;
+      canvasStyle.height = `${imgRect.height}px`;
+      
+      // Restore the content
+      ctx.drawImage(tempCanvas, 0, 0);
+      
+      // Clean up
+      tempCanvas.remove();
+    }
+  }, [scale]);
+
+  // Add effect to ensure canvas position matches image position
+  useEffect(() => {
+    if (!imageLoaded) return;
+
+    const image = imageRef.current;
+    const canvas = canvasRef.current;
+    
+    if (!image || !canvas) return;
+
+    const updateCanvasPosition = () => {
+      // Check refs are still valid when callback is invoked
+      if (!imageRef.current || !canvasRef.current) return;
+      
+      const imgRect = imageRef.current.getBoundingClientRect();
+      const canvasStyle = canvasRef.current.style;
+      
+      // Match the canvas position and dimensions to the image
+      canvasStyle.width = `${imgRect.width}px`;
+      canvasStyle.height = `${imgRect.height}px`;
+    };
+    
+    // Initial update
+    updateCanvasPosition();
+    
+    // Update on resize
+    const resizeObserver = new ResizeObserver(() => {
+      // Request animation frame to ensure DOM is ready
+      requestAnimationFrame(updateCanvasPosition);
+    });
+    
+    resizeObserver.observe(image);
+    
+    // Cleanup function
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [imageLoaded]);
 
   // Add effect to handle viewport meta tag
   useEffect(() => {
@@ -90,6 +158,48 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
     e.stopPropagation();
   };
 
+  // Helper function for coordinate conversion using the image's displayed bounds
+  const getDrawingCoordinates = (clientX: number, clientY: number) => {
+    if (!imageRef.current || !originalDimensions || !canvasRef.current) return { x: 0, y: 0 };
+    
+    // Get the image's displayed dimensions and position
+    const imgRect = imageRef.current.getBoundingClientRect();
+    
+    // Calculate aspect ratios
+    const displayRatio = imgRect.width / imgRect.height;
+    const originalRatio = originalDimensions.width / originalDimensions.height;
+    
+    // Calculate the actual displayed image dimensions accounting for letterboxing
+    let displayedWidth = imgRect.width;
+    let displayedHeight = imgRect.height;
+    let offsetX = 0;
+    let offsetY = 0;
+    
+    if (displayRatio > originalRatio) {
+      // Image is wider than container
+      displayedWidth = imgRect.height * originalRatio;
+      offsetX = (imgRect.width - displayedWidth) / 2;
+    } else {
+      // Image is taller than container
+      displayedHeight = imgRect.width / originalRatio;
+      offsetY = (imgRect.height - displayedHeight) / 2;
+    }
+    
+    // Calculate the position relative to the actual displayed image area
+    const localX = clientX - (imgRect.left + offsetX);
+    const localY = clientY - (imgRect.top + offsetY);
+    
+    // Calculate the scaling factors based on the actual displayed dimensions
+    const scaleX = originalDimensions.width / displayedWidth;
+    const scaleY = originalDimensions.height / displayedHeight;
+    
+    // Map the coordinates to the canvas space
+    const canvasX = localX * scaleX;
+    const canvasY = localY * scaleY;
+    
+    return { x: canvasX, y: canvasY };
+  };
+
   const updateBrushSettings = (context: CanvasRenderingContext2D) => {
     if (brushMode === BrushMode.PAINT) {
       // Use solid black for the mask - areas to edit
@@ -117,40 +227,77 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   useEffect(() => {
     if (imageRef.current) {
       const img = imageRef.current;
-      img.onload = () => {
+      
+      const handleImageLoad = () => {
         setImageLoaded(true);
         // Store original dimensions
         setOriginalDimensions({
           width: img.naturalWidth,
           height: img.naturalHeight
         });
-        if (canvasRef.current && ctx) {
-          // Set canvas to original image dimensions
-          canvasRef.current.width = img.naturalWidth;
-          canvasRef.current.height = img.naturalHeight;
-          updateBrushSettings(ctx);
+        
+        const canvas = canvasRef.current;
+        if (canvas && ctx) {
+          const updateCanvasDimensions = () => {
+            // Get the actual displayed image dimensions
+            const imgRect = img.getBoundingClientRect();
+            const displayRatio = imgRect.width / imgRect.height;
+            const originalRatio = img.naturalWidth / img.naturalHeight;
+            
+            // Set canvas to original image dimensions
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            
+            // Clear the canvas only on initial load
+            if (!imageLoaded) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // Update brush settings
+            updateBrushSettings(ctx);
+          };
+          
+          // Initial update
+          updateCanvasDimensions();
+          
+          // Add resize observer to handle dimension changes
+          const resizeObserver = new ResizeObserver(() => {
+            updateCanvasDimensions();
+          });
+          
+          resizeObserver.observe(img);
+          
+          return () => {
+            resizeObserver.disconnect();
+          };
         }
       };
+      
+      // Handle both immediate load and async load cases
+      if (img.complete) {
+        handleImageLoad();
+      } else {
+        img.onload = handleImageLoad;
+      }
     }
-  }, [ctx, brushSize]);
+  }, [ctx, imageLoaded]);
 
   useEffect(() => {
     if (ctx) {
+      // Store current composite operation and line width
+      const currentComposite = ctx.globalCompositeOperation;
+      const currentLineWidth = ctx.lineWidth;
+      
       updateBrushSettings(ctx);
+      
+      // Restore the previous drawing state
+      ctx.globalCompositeOperation = currentComposite;
+      ctx.lineWidth = currentLineWidth;
     }
   }, [brushMode, brushSize]);
 
   const getScaledCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !originalDimensions) return { x: 0, y: 0 };
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scaleX = originalDimensions.width / (rect.width * scale);
-    const scaleY = originalDimensions.height / (rect.height * scale);
-    
-    // Adjust for current zoom and pan
-    const x = ((e.clientX - rect.left) * scaleX) - (position.x * scaleX);
-    const y = ((e.clientY - rect.top) * scaleY) - (position.y * scaleY);
-    
-    return { x, y };
+    return getDrawingCoordinates(e.clientX, e.clientY);
   };
 
   const startDragging = (clientX: number, clientY: number) => {
@@ -178,28 +325,44 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   };
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!ctx || scale > 1 || isDragging) return;
+    e.stopPropagation();
+    if (!ctx || isDragging) return;
     const { x, y } = getScaledCoordinates(e);
     
     ctx.beginPath();
     ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
     ctx.fill();
     
-    ctx.beginPath();
-    ctx.moveTo(x, y);
     setIsDrawing(true);
+    lastPosition.current = { x, y };
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !ctx || scale > 1 || isDragging) return;
+    e.stopPropagation();
+    if (!isDrawing || !ctx || isDragging) return;
+    
     const { x, y } = getScaledCoordinates(e);
     
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
+    // Get the distance between the current point and the last point
+    const dx = x - lastPosition.current.x;
+    const dy = y - lastPosition.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    // Calculate how many circles we need to draw to create a smooth line
+    const stepSize = brushSize / 4;
+    const numSteps = Math.max(1, Math.floor(distance / stepSize));
+    
+    // Draw circles along the path for a smooth stroke
+    for (let i = 0; i <= numSteps; i++) {
+      const pointX = lastPosition.current.x + (dx * i) / numSteps;
+      const pointY = lastPosition.current.y + (dy * i) / numSteps;
+      
+      ctx.beginPath();
+      ctx.arc(pointX, pointY, brushSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    lastPosition.current = { x, y };
   };
 
   const stopDrawing = () => {
@@ -297,6 +460,13 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
         console.log('Original image dimensions:', originalDimensions.width, 'x', originalDimensions.height);
       }
 
+      // Extract original filename without extension
+      const originalFilename = imageUrl.split('/').pop()?.split('.')[0] || 'edited';
+      
+      // Generate a unique filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const editedFilename = `edited-images/${originalFilename}-${timestamp}.png`;
+
       // Send edit request to ideogram endpoint
       const editPayload = {
         imageUrl: imageUrl,
@@ -304,7 +474,8 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
         prompt: prompt || "Maintain the original image style and composition",
         model: model,
         magic_prompt_option: 'AUTO',
-        num_images: 1
+        num_images: 1,
+        outputPath: editedFilename
       };
 
       console.log('Sending edit request with payload:', editPayload);
@@ -346,45 +517,40 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   const downloadEditedImage = async () => {
     if (!editedImageUrl) return;
-    
-    let filename;
+
     try {
-      console.log('Source URL:', editedImageUrl);
-      const urlObj = new URL(editedImageUrl);
-      const segments = urlObj.pathname.split('/');
-      console.log('URL segments:', segments);
-      const bucketIndex = segments.findIndex(seg => seg === 'sshift-gpt-bucket');
-      console.log('Bucket index:', bucketIndex);
-      if (bucketIndex < 0 || bucketIndex === segments.length - 1) {
-        throw new Error('Cannot extract filename');
+      // Extract filename from URL
+      let filename;
+      try {
+        const urlObj = new URL(editedImageUrl);
+        const segments = urlObj.pathname.split('/');
+        const bucketIndex = segments.findIndex(seg => seg === 'sshift-gpt-bucket');
+        if (bucketIndex < 0 || bucketIndex === segments.length - 1) {
+          throw new Error('Cannot extract filename');
+        }
+        filename = segments.slice(bucketIndex + 1).join('/');
+        console.log('Extracted filename:', filename);
+      } catch (err) {
+        console.error('Error extracting filename', err);
+        filename = 'edited-image.png';
       }
-      filename = segments.slice(bucketIndex + 1).join('/');
-      console.log('Extracted filename:', filename);
-    } catch (err) {
-      console.error('Error extracting filename', err);
-      return;
-    }
 
-    // Get the base URL from the backend service
-    const baseUrl = backend.defaults.baseURL;
-    if (!baseUrl) {
-      console.error('Backend API URL is not defined');
-      alert('Server configuration error. Please contact support.');
-      return;
-    }
+      // Get the base URL from the backend service
+      const baseUrl = backend.defaults.baseURL;
+      if (!baseUrl) {
+        console.error('Backend API URL is not defined');
+        alert('Server configuration error. Please contact support.');
+        return;
+      }
 
-    // Construct the full API URL, ensuring no double slashes
-    const apiUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    // Remove /chat-api since it's already in the baseUrl, and ensure we're using the correct bucket route
-    const downloadUrl = `${apiUrl}/bucket/download/${encodeURIComponent(filename)}`;
-    console.log('Download URL:', downloadUrl);
+      // Construct the full API URL, ensuring no double slashes
+      const apiUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      // Remove /chat-api since it's already in the baseUrl, and ensure we're using the correct bucket route
+      const downloadUrl = `${apiUrl}/bucket/download/${encodeURIComponent(filename)}`;
+      console.log('Download URL:', downloadUrl);
 
-    try {
-      console.log('Initiating download request...');
-
+      // Get authentication token
       let token = jwt;
-      console.log('Token from AuthContext:', token ? 'Token exists' : 'No token found in context');
-
       if (!token) {
         const stored = window.localStorage.getItem('jwt');
         if (stored) {
@@ -409,11 +575,11 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
         }
       }
 
-      console.log('Final token being used:', token ? 'Token exists' : 'No token found');
       if (!token) {
         throw new Error('No authentication token found');
       }
 
+      // Fetch the image
       const response = await fetch(downloadUrl, {
         method: 'GET',
         headers: {
@@ -423,7 +589,6 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
         credentials: 'include',
         mode: 'cors'
       });
-      console.log('Response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -432,54 +597,43 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
       }
       
       const blob = await response.blob();
-      console.log('Blob received:', blob.type, blob.size);
+      const url = URL.createObjectURL(blob);
+      const displayFilename = filename.split('/').pop() || 'edited-image.png';
 
-      // Check if we're on a mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      
+
       if (isMobile) {
-        // For mobile devices, use the Web Share API if available
-        if (navigator.share && navigator.canShare) {
+        // Try Web Share API first
+        if (navigator.canShare && navigator.canShare({ files: [] })) {
           try {
-            const file = new File([blob], filename.split('/').pop() || 'edited-image.png', { 
-              type: blob.type 
-            });
-            
-            const shareData = {
+            const file = new File([blob], displayFilename, { type: blob.type });
+            await navigator.share({
               files: [file],
-              title: 'Download Edited Image',
-              text: 'Edited image from SShift'
-            };
-            
-            if (navigator.canShare(shareData)) {
-              await navigator.share(shareData);
-              console.log('Mobile share successful');
-              return;
-            } else {
-              console.log('Web Share API cannot share this content, falling back');
-            }
+              title: 'Edited Image',
+              text: 'Here is your edited image',
+            });
+            URL.revokeObjectURL(url);
+            return;
           } catch (err) {
-            console.error('Error using Web Share API:', err);
-            // Fall back to traditional method if sharing fails
+            console.warn('Share failed, falling back to new-tab:', err);
           }
         }
-        
-        // Fallback for mobile if Web Share API is not available or fails
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename.split('/').pop() || 'edited-image.png';
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        console.log('Mobile download initiated via fallback method');
-      } else if ('showSaveFilePicker' in window) {
+
+        // Mobile fallback: open image in new tab
+        const newTab = window.open(url, '_blank');
+        if (!newTab) {
+          alert('Please allow pop-ups or manually save the image by long-pressing on it.');
+        }
+        // Don't revoke URL immediately as the new tab needs it
+        setTimeout(() => URL.revokeObjectURL(url), 60000); // Revoke after 1 minute
+        return;
+      }
+
+      // Desktop devices
+      if ('showSaveFilePicker' in window) {
         console.log('Using File System Access API');
         const options = {
-          suggestedName: filename.split('/').pop(),
+          suggestedName: displayFilename,
           types: [
             {
               description: 'Image file',
@@ -493,51 +647,37 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
+          URL.revokeObjectURL(url);
           console.log('File saved successfully using File System Access API');
+          return;
         } catch (err: any) {
           // Check if this is a user abort error (user canceled the save dialog)
           if (err.name === 'AbortError' || err.message.includes('user aborted') || err.message.includes('cancel')) {
             console.log('User canceled the save dialog');
+            URL.revokeObjectURL(url);
             return; // Exit gracefully without showing an error
           }
           
           console.error('Error using File System Access API:', err);
-          // Only fallback to traditional download for non-cancellation errors
-          console.log('Falling back to traditional download method');
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename.split('/').pop() || 'edited-image.png';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
+          // Fall through to traditional download method
         }
-      } else {
-        console.log('Using traditional download method');
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename.split('/').pop() || 'edited-image.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        console.log('Traditional download initiated');
-      }
-    } catch (error) {
-      // Check if this is a user abort error (user canceled the save dialog)
-      if (error instanceof Error && 
-          (error.name === 'AbortError' || error.message.includes('user aborted') || error.message.includes('cancel'))) {
-        console.log('User canceled the download');
-        return; // Exit gracefully without showing an error
       }
       
+      // Traditional download method for desktop
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = displayFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log('Traditional download initiated');
+
+    } catch (error) {
       console.error('Error during download:', error);
-      // More specific error message for mobile devices
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
-        alert('Could not download image. Please try again or take a screenshot.');
+        alert('Could not download image. Try taking a screenshot or opening the image in a new tab.');
       } else {
         alert('Failed to download image. Please try again.');
       }
@@ -574,60 +714,93 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   // Add touch event handlers
   const getTouchCoordinates = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !e.touches[0] || !originalDimensions) return { x: 0, y: 0 };
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const touchX = e.touches[0].clientX - rect.left;
-    const touchY = e.touches[0].clientY - rect.top;
-    
-    // Calculate the scaling factors between original image dimensions and displayed canvas
-    const scaleX = originalDimensions.width / rect.width;
-    const scaleY = originalDimensions.height / rect.height;
-
-    // Calculate the actual position on the canvas accounting for zoom and pan
-    // First convert touch position to the zoomed canvas coordinate system
-    const canvasX = ((touchX - position.x) / scale);
-    const canvasY = ((touchY - position.y) / scale);
-    
-    // Then scale to the original image dimensions
-    return {
-      x: canvasX * scaleX,
-      y: canvasY * scaleY
-    };
+    if (!e.touches[0]) return { x: 0, y: 0 };
+    return getDrawingCoordinates(e.touches[0].clientX, e.touches[0].clientY);
   };
 
   const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.stopPropagation();
     if (!ctx || isProcessing || !showOriginal || isDragging) return;
     
-    const { x, y } = getTouchCoordinates(e);
+    // Store the touch start time
+    touchStartTimeRef.current = Date.now();
+    isTouchIntentDetermined.current = false;
     
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
+    // Set a timer to start drawing after a short delay
+    // This gives time to detect if a second finger is placed down
+    touchTimerRef.current = setTimeout(() => {
+      if (e.touches.length === 1) {
+        const { x, y } = getTouchCoordinates(e);
+        
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        setIsDrawing(true);
+        lastPosition.current = { x, y };
+        isTouchIntentDetermined.current = true;
+      }
+    }, 50); // 50ms delay to detect multi-touch intent
   };
 
   const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.stopPropagation();
+    
+    // Clear the timer if we're moving before the timer fires
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+    
+    // Only draw if we've determined this is a drawing gesture
+    if (!isDrawing && !isTouchIntentDetermined.current) {
+      // If it's been more than 50ms since touch start and still only one finger, start drawing
+      if (Date.now() - touchStartTimeRef.current > 50 && e.touches.length === 1 && ctx) {
+        const { x, y } = getTouchCoordinates(e);
+        
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        setIsDrawing(true);
+        lastPosition.current = { x, y };
+        isTouchIntentDetermined.current = true;
+      }
+      return;
+    }
+    
     if (!isDrawing || !ctx || isProcessing || !showOriginal || isDragging) return;
     
     const { x, y } = getTouchCoordinates(e);
     
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
+    // Get the distance between the current point and the last point
+    const dx = x - lastPosition.current.x;
+    const dy = y - lastPosition.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    const stepSize = brushSize / 4;
+    const numSteps = Math.max(1, Math.floor(distance / stepSize));
+    
+    for (let i = 0; i <= numSteps; i++) {
+      const pointX = lastPosition.current.x + (dx * i) / numSteps;
+      const pointY = lastPosition.current.y + (dy * i) / numSteps;
+      
+      ctx.beginPath();
+      ctx.arc(pointX, pointY, brushSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    lastPosition.current = { x, y };
   };
 
   const stopDrawingTouch = () => {
-    if (!ctx) return;
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+    
     setIsDrawing(false);
-    ctx.closePath();
+    isTouchIntentDetermined.current = false;
   };
 
   // Reset zoom when image changes
@@ -638,7 +811,21 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   // Handle pinch to zoom
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    // Handle double tap to reset zoom
+    if ((e.target as HTMLElement).tagName === 'CANVAS') {
+      if (e.touches.length > 1) {
+        // Cancel drawing intent if a second finger is placed
+        if (touchTimerRef.current) {
+          clearTimeout(touchTimerRef.current);
+          touchTimerRef.current = null;
+        }
+        setIsDrawing(false);
+        isTouchIntentDetermined.current = false;
+      }
+      
+      // Let the canvas handle single-touch events
+      if (e.touches.length === 1) return;
+    }
+    
     const now = new Date().getTime();
     const timeSince = now - lastTapRef.current;
     
@@ -654,28 +841,27 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
       e.preventDefault();
       e.stopPropagation();
       
+      // Cancel any drawing that might be in progress
+      setIsDrawing(false);
+      isTouchIntentDetermined.current = false;
+      
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const centerX = (touch1.clientX + touch2.clientX) / 2;
       const centerY = (touch1.clientY + touch2.clientY) / 2;
       
-      if (scale > 1) {
-        // Start dragging with two fingers when zoomed in
-        startDragging(centerX, centerY);
-      }
+      startDragging(centerX, centerY);
       
       setIsPinching(true);
       
-      // Calculate initial distance between two fingers for pinch-to-zoom
       const distance = Math.hypot(
         touch2.clientX - touch1.clientX,
         touch2.clientY - touch1.clientY
       );
       lastDistance.current = distance;
       lastPosition.current = { x: centerX, y: centerY };
-    } else if (e.touches.length === 1 && canvasRef.current) {
-      // Allow single-finger touch for drawing regardless of zoom level
-      startDrawingTouch(e as unknown as React.TouchEvent<HTMLCanvasElement>);
+    } else if (e.touches.length === 1 && (e.target as HTMLElement).tagName !== 'CANVAS') {
+      startDragging(e.touches[0].clientX, e.touches[0].clientY);
     }
   };
 
@@ -688,62 +874,95 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
       const touch2 = e.touches[1];
       const centerX = (touch1.clientX + touch2.clientX) / 2;
       const centerY = (touch1.clientY + touch2.clientY) / 2;
-
+      
       if (isPinching) {
-        // Handle pinch-to-zoom
         const distance = Math.hypot(
           touch2.clientX - touch1.clientX,
           touch2.clientY - touch1.clientY
         );
         
         if (lastDistance.current !== null) {
-          // Calculate scale change
-          const scaleFactor = 0.01; // Adjust sensitivity
+          const scaleFactor = 0.01;
           const newScale = scale * (1 + scaleFactor * (distance - lastDistance.current) / 10);
-          
-          // Limit scale to reasonable bounds
-          const limitedScale = Math.max(0.5, Math.min(5, newScale));
-          
-          // Calculate position change for panning
+          const limitedScale = Math.max(1, Math.min(5, newScale));
           const deltaX = centerX - lastPosition.current.x;
           const deltaY = centerY - lastPosition.current.y;
           
-          setScale(limitedScale);
-          setPosition(prev => ({
-            x: prev.x + deltaX,
-            y: prev.y + deltaY
-          }));
+          if (limitedScale !== scale) {
+            setScale(limitedScale);
+            
+            if (imageContainerRef.current) {
+              const rect = imageContainerRef.current.getBoundingClientRect();
+              const containerCenterX = rect.left + rect.width / 2;
+              const containerCenterY = rect.top + rect.height / 2;
+              const offsetX = centerX - containerCenterX;
+              const offsetY = centerY - containerCenterY;
+              
+              setPosition(prev => ({
+                x: prev.x + deltaX + offsetX * (limitedScale - scale) / limitedScale,
+                y: prev.y + deltaY + offsetY * (limitedScale - scale) / limitedScale
+              }));
+            } else {
+              setPosition(prev => ({
+                x: prev.x + deltaX,
+                y: prev.y + deltaY
+              }));
+            }
+          }
         }
         
-        lastDistance.current = distance;
+        lastDistance.current = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
         lastPosition.current = { x: centerX, y: centerY };
+      } else if (isDragging) {
+        handleDrag(e.touches[0].clientX, e.touches[0].clientY);
       }
-      
-      if (isDragging && scale > 1) {
-        // Handle two-finger dragging when zoomed in
-        handleDrag(centerX, centerY);
+    } else if (e.touches.length === 1) {
+      if ((e.target as HTMLElement).tagName !== 'CANVAS' && isDragging) {
+        handleDrag(e.touches[0].clientX, e.touches[0].clientY);
       }
-    } else if (e.touches.length === 1 && canvasRef.current) {
-      // Allow drawing with one finger regardless of zoom level
-      drawTouch(e as unknown as React.TouchEvent<HTMLCanvasElement>);
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (e.touches.length < 2) {
+    if (isPinching && e.touches.length < 2) {
       setIsPinching(false);
       lastDistance.current = null;
+    }
+    
+    if (isDragging && e.touches.length === 0) {
       stopDragging();
+    }
+    
+    // If we're on the canvas and all touches are removed, stop drawing
+    if ((e.target as HTMLElement).tagName === 'CANVAS' && e.touches.length === 0) {
+      stopDrawingTouch();
     }
   };
 
   const resetZoom = () => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
+    setIsDragging(false);
+    setIsPinching(false);
+    lastDistance.current = null;
+    
+    // Update canvas position after zoom reset
+    if (imageLoaded && imageRef.current && canvasRef.current) {
+      const imgRect = imageRef.current.getBoundingClientRect();
+      const canvasStyle = canvasRef.current.style;
+      
+      // Match the canvas position and dimensions to the image
+      canvasStyle.width = `${imgRect.width}px`;
+      canvasStyle.height = `${imgRect.height}px`;
+    }
   };
 
   // Add mouse event handlers for dragging
   const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).tagName === 'CANVAS') return;
     if (scale > 1) {
       e.preventDefault();
       startDragging(e.clientX, e.clientY);
@@ -783,9 +1002,14 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
     >
       <div 
         className="bg-white w-full h-full flex flex-col overflow-hidden text-xs sm:text-base"
-        style={{ touchAction: 'none' }}
+        style={{ 
+          touchAction: 'none',
+          maxHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
       >
-        <div className="flex justify-between items-center p-3 sticky top-0 bg-white z-10 border-b">
+        <div className="flex justify-between items-center p-2 sm:p-3 sticky top-0 bg-white z-10 border-b shrink-0">
           <h2 className="text-base sm:text-xl font-semibold">Edit Image</h2>
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-gray-500 hidden sm:inline-block">
@@ -802,16 +1026,15 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
         </div>
 
         {/* Mobile zoom hint */}
-        <div className="text-[10px] text-gray-500 mb-1 sm:hidden text-center">
+        <div className="text-[10px] text-gray-500 mb-1 sm:hidden text-center shrink-0">
           Pinch to zoom • Double-tap to reset
         </div>
 
-        <div className="space-y-2 overflow-y-auto flex-1 pr-1 modal-scroll-content"
-        >
+        <div className="flex-1 min-h-0 flex flex-col">
           <div 
             ref={imageContainerRef}
-            className="relative w-full overflow-hidden flex-1" 
-            style={{ height: 'calc(100vh - 250px)' }}
+            className="relative flex-1 overflow-hidden" 
+            style={{ minHeight: 0 }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -838,7 +1061,8 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
               style={{
                 transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
                 transformOrigin: 'center',
-                transition: isPinching ? 'none' : 'transform 0.1s ease-out'
+                transition: isPinching ? 'none' : 'transform 0.1s ease-out',
+                willChange: 'transform'
               }}
             >
               <img
@@ -846,7 +1070,10 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
                 src={showOriginal ? imageUrl : (editedImageUrl || imageUrl)}
                 alt="Edit"
                 className="w-full h-full object-contain"
-                style={{ opacity: previewMask ? 0.5 : 1 }}
+                style={{ 
+                  opacity: previewMask ? 0.5 : 1,
+                  pointerEvents: 'none'
+                }}
               />
               <canvas
                 ref={canvasRef}
@@ -861,9 +1088,11 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
                 className="absolute top-0 left-0 w-full h-full touch-none"
                 style={{
                   background: 'transparent',
-                  pointerEvents: imageLoaded && !isProcessing && !isPinching ? 'auto' : 'none',
+                  pointerEvents: imageLoaded && !isProcessing && !isPinching && scale === 1 ? 'auto' : 'none',
                   cursor: brushMode === BrushMode.PAINT ? 'crosshair' : 'cell',
-                  display: showOriginal ? 'block' : 'none'
+                  display: showOriginal ? 'block' : 'none',
+                  objectFit: 'contain',
+                  objectPosition: 'center'
                 }}
               />
             </div>
@@ -881,7 +1110,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
           </div>
 
           {editedImageUrl && (
-            <div className="flex flex-wrap justify-center gap-1 my-1 sm:my-3">
+            <div className="flex flex-wrap justify-center gap-1 my-1 sm:my-2 shrink-0">
               <button
                 onClick={toggleImage}
                 className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
@@ -900,7 +1129,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2 p-3 border-t bg-white">
+          <div className="grid grid-cols-1 gap-2 p-2 sm:p-3 border-t bg-white shrink-0">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
