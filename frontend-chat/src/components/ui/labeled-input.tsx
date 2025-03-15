@@ -11,6 +11,7 @@ export const LabeledInput: FC<{
   type?: 'number' | 'text';
   id: string;
   readOnly?: boolean;
+  min?: number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }> = ({
   label,
@@ -22,6 +23,7 @@ export const LabeledInput: FC<{
   id,
   type = 'number',
   readOnly,
+  min,
 }) => {
   return (
     <div className="flex flex-col item-center space-y-2">
@@ -38,6 +40,7 @@ export const LabeledInput: FC<{
         onChange={onChange}
         readOnly={readOnly}
         placeholder={tooltip}
+        min={min}
       />
     </div>
   );

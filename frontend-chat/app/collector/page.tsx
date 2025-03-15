@@ -3,6 +3,7 @@ import { useAppManagment } from '../../src/context/AppManagment';
 import AGIThoughtBackground from '../../src/components/ui/agiThought';
 import DashboardHeader from '../../src/components/ui/DashboardHeader';
 import { FundManage } from './fundManage';
+import BalanceDashboard from '../../src/components/dashboard/BalanceDashboard';
 
 const CollectorPage = () => {
   const { isCollector } = useAppManagment();
@@ -25,11 +26,16 @@ const CollectorPage = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white bg-opacity-90 p-8 rounded-xl shadow-lg border border-gray-300 min-w-[700px] justify-self-center">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Fund Managment</h2>
+        <div className="space-y-8">
+          <div className="bg-white bg-opacity-90 p-8 rounded-xl shadow-lg border border-gray-300 min-w-[700px] justify-self-center">
+            <BalanceDashboard />
           </div>
-          <FundManage />
+          <div className="bg-white bg-opacity-90 p-8 rounded-xl shadow-lg border border-gray-300 min-w-[700px] justify-self-center">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Fund Managment</h2>
+            </div>
+            <FundManage />
+          </div>
         </div>
       )}
     </div>

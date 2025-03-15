@@ -7,6 +7,8 @@ import {
   useContext,
   useEffect,
   useState,
+  FC,
+  PropsWithChildren,
 } from 'react';
 import { useAbiClient } from './AbiProvider';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
@@ -21,7 +23,7 @@ import { useWalletClient } from '@thalalabs/surf/hooks';
 import { useAuth } from './AuthProvider';
 import { useChain } from './ChainProvider';
 
-export type AppManagmenContextProp = {
+export interface AppManagmentContextType {
   isAdmin: boolean;
   setIsAdmin: Dispatch<SetStateAction<boolean>>;
   isPendingAdmin: boolean;
@@ -46,17 +48,40 @@ export type AppManagmenContextProp = {
   setIsPendingReviewer: Dispatch<SetStateAction<boolean>>;
   hasSubscriptionToClaim: boolean;
   setHasSubscriptionToClaim: Dispatch<SetStateAction<boolean>>;
-};
+  isAppRunning: boolean;
+  setAppRunning: (isRunning: boolean) => void;
+}
 
-const AppManagmentContext = createContext<AppManagmenContextProp>(
-  {} as AppManagmenContextProp
-);
+export const AppManagmentContext = createContext<AppManagmentContextType>({
+  isAdmin: false,
+  setIsAdmin: () => {},
+  isPendingAdmin: false,
+  setIsPendingAdmin: () => {},
+  isCollector: false,
+  setIsCollector: () => {},
+  resourceAccount: null,
+  setResourceAccount: () => {},
+  currency: null,
+  setCurrency: () => {},
+  moveBotsOwned: 0,
+  qribbleNFTsOwned: 0,
+  sshiftRecordsOwned: 0,
+  nftAddressesRequiredOwned: [],
+  onSubscribe: async () => {},
+  isSubscriptionActive: false,
+  setIsSubscriptionActive: () => {},
+  expirationDate: null,
+  isReviewer: false,
+  setIsReviewer: () => {},
+  isPendingReviewer: false,
+  setIsPendingReviewer: () => {},
+  hasSubscriptionToClaim: false,
+  setHasSubscriptionToClaim: () => {},
+  isAppRunning: true,
+  setAppRunning: () => {},
+});
 
-export const AppManagementProvider = ({
-  children,
-}: {
-  children: ReactNode;
-}) => {
+export const AppManagmentProvider: FC<PropsWithChildren> = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPendingAdmin, setIsPendingAdmin] = useState(false);
   const [isCollector, setIsCollector] = useState(false);
@@ -76,6 +101,7 @@ export const AppManagementProvider = ({
   const [isSubscriptionActive, setIsSubscriptionActive] = useState(false);
   const [currency, setCurrency] = useState<`0x${string}` | null>(null);
   const [expirationDate, setExpirationDate] = useState<string | null>(null);
+  const [isAppRunning, setIsAppRunning] = useState<boolean>(true);
 
   const { abi, feesABI, subscriptionABI } = useAbiClient();
   const { connected } = useWallet();
@@ -439,6 +465,11 @@ export const AppManagementProvider = ({
     }
   };
 
+  const setAppRunning = (isRunning: boolean) => {
+    setIsAppRunning(isRunning);
+    // In a real implementation, you might want to persist this to a backend
+  };
+
   const values = {
     isAdmin,
     setIsAdmin,
@@ -464,6 +495,8 @@ export const AppManagementProvider = ({
     setIsPendingReviewer,
     hasSubscriptionToClaim,
     setHasSubscriptionToClaim,
+    isAppRunning,
+    setAppRunning,
   };
 
   return (

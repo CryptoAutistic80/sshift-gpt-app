@@ -5,7 +5,7 @@ import { Toaster } from '../src/components/ui/toaster';
 import { ThemeProvider } from '../src/context/ThemeProvider';
 import { WalletProvider } from '../src/context/WalletProvider';
 import { BackendProvider } from '../src/context/BackendProvider';
-import { AppManagementProvider } from '../src/context/AppManagment';
+import { AppManagmentProvider } from '../src/context/AppManagment';
 import { AbiProvider } from '../src/context/AbiProvider';
 import { AuthProvider } from '../src/context/AuthProvider';
 import { AgentProvider } from '../src/context/AgentProvider';
@@ -39,12 +39,12 @@ export default function RootLayout({
               <AuthProvider>
                 <BackendProvider>
                   <AbiProvider>
-                    <AppManagementProvider>
+                    <AppManagmentProvider>
                       <AgentProvider>
                         <WebVitals />
                         {children}
                       </AgentProvider>
-                    </AppManagementProvider>
+                    </AppManagmentProvider>
                   </AbiProvider>
                 </BackendProvider>
               </AuthProvider>
