@@ -86,7 +86,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                     <span className="text-xl">📒</span>
                     <div className="flex flex-col items-start">
                       <span className="font-medium">Ledger App</span>
-                      <span className="text-xs text-gray-500">"Draw your own" infinite NFT collection</span>
+                      <span className="text-xs text-gray-500">Infinite DIY NFT collection</span>
                     </div>
                   </Button>
                 </Link>
